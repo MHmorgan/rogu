@@ -1,6 +1,6 @@
 
 # Name of application
-EXE := app
+EXE := rogu
 
 # All platforms must support amd64 and arm64, or else the
 # build target needs to be updated as well.
@@ -20,8 +20,7 @@ all:
 	staticcheck ./...
 	go test -race ./...
 
-build:
-	clean $(PLATFORMS)
+build: clean $(PLATFORMS)
 
 $(PLATFORMS):
 	GOOS=$@ GOARCH=arm64 go build -o $(EXE)_$@_arm64 $(FLAGS)
@@ -29,4 +28,4 @@ $(PLATFORMS):
 
 clean:
 	go clean
-	rm $(EXE)*
+	rm -f $(EXE)*
