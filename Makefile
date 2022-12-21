@@ -12,7 +12,16 @@ PLATFORMS := windows linux darwin
 # static : Create a fully statically-linked executable
 FLAGS = -tags netgo,static -ldflags "-s -w" -trimpath
 
-all: clean $(PLATFORMS)
+# Required:
+# go install honnef.co/go/tools/cmd/staticcheck@latest
+all:
+	go mod tidy
+	go vet ./...
+	staticcheck ./...
+	go test -race ./...
+
+build:
+	clean $(PLATFORMS)
 
 $(PLATFORMS):
 	GOOS=$@ GOARCH=arm64 go build -o $(EXE)_$@_arm64 $(FLAGS)

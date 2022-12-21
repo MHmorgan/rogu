@@ -1,3 +1,7 @@
+# GoLand folders
+.idea
+.run
+
 # Binaries for programs and plugins
 *.exe
 *.exe~
