@@ -45,13 +45,13 @@ func sync(args []string) {
 
 		if !installed {
 			if item.Install != nil {
-				log.Emphf("Installing %s (%d)", item.Name, item.Priority)
+				log.Emphf("Installing %s", item.Name)
 				err = item.Install()
 			} else {
 				log.Warnf("I don't know how to install %s", item.Name)
 			}
 		} else if item.Update != nil {
-			log.Emphf("Updating %s (%d)", item.Name, item.Priority)
+			log.Emphf("Updating %s", item.Name)
 			err = item.Update()
 		}
 		if err != nil {
