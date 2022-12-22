@@ -3,6 +3,10 @@
 .run
 
 # Binaries for programs and plugins
+rogu
+rogu_darwin_*
+rogu_linux_*
+rogu_windows_*
 *.exe
 *.exe~
 *.dll
