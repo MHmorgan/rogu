@@ -3,8 +3,8 @@ package items
 import (
 	"fmt"
 	"github.com/mhmorgan/rogu/config"
-	"github.com/mhmorgan/rogu/fs"
 	"github.com/mhmorgan/rogu/sh"
+	"github.com/mhmorgan/rogu/utils"
 	"strings"
 )
 
@@ -27,10 +27,10 @@ func fileItems() (items []Item, err error) {
 }
 
 func fileChecker(path string) func() (bool, error) {
-	home := fs.Home()
+	home := utils.Home()
 	path = strings.Replace(path, "~", home, 1)
 	return func() (bool, error) {
-		return fs.Exists(path), nil
+		return utils.PathExists(path), nil
 	}
 }
 
@@ -47,6 +47,13 @@ func fileInstaller(srcUrl, dst string, mode int) func() error {
 
 	chmod := fmt.Sprintf("chmod 0%o %s ;", mode, dst)
 	return func() error {
+		resp, ok, err := utils.UrlExists(srcUrl)
+		if err != nil {
+			return err
+		}
+		if !ok {
+			return fmt.Errorf("URL %q does not exist (response %d)", srcUrl, resp)
+		}
 		return sh.Runf("%s%s", curl, chmod)
 	}
 }

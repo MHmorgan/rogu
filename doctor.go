@@ -28,7 +28,7 @@ func doctor(args []string) {
 
 	for _, item := range items_ {
 		if item.IsInstalled == nil {
-			log.Errorf("%s has no installation check", item.Name)
+			log.Errorf("%v has no installation check", item.Name)
 			continue
 		}
 		switch installed, err := item.IsInstalled(); {

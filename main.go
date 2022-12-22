@@ -4,7 +4,7 @@ import (
 	"flag"
 	"fmt"
 	"github.com/mhmorgan/rogu/config"
-	"github.com/mhmorgan/rogu/fs"
+	"github.com/mhmorgan/rogu/utils"
 	log "github.com/mhmorgan/termlog"
 	"os"
 )
@@ -12,7 +12,7 @@ import (
 var (
 	verbose bool
 
-	defaultCfgFile = fs.RelHome(".rogu")
+	defaultCfgFile = utils.RelHome(".rogu")
 )
 
 type command struct {
@@ -99,7 +99,6 @@ The commands are:
 
 	boilerplate  download a boilerplate file
 	doctor       diagnose your machine
-	edit	     edit a dotfile
 	help         show this help
 	list	     list all dotfiles
 	sync         install and update Rogu's items

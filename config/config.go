@@ -26,6 +26,10 @@ type Config struct {
 		Branch string
 	}
 
+	Boilerplates struct {
+		UrlDir string `yaml:"url_dir"`
+	}
+
 	Scripts map[string]struct {
 		Priority  int
 		Check     string

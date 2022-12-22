@@ -1,4 +1,4 @@
-package fs
+package utils
 
 import (
 	"github.com/mhmorgan/rogu/sh"
@@ -38,8 +38,8 @@ func CdHome() error {
 	return os.Chdir(home)
 }
 
-// Exists returns true if the given path exists.
-func Exists(path string) bool {
+// PathExists returns true if the given path exists.
+func PathExists(path string) bool {
 	_, err := os.Stat(path)
 	if err == nil {
 		return true

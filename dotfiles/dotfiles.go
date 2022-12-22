@@ -6,8 +6,8 @@ package dotfiles
 import (
 	"fmt"
 	"github.com/mhmorgan/rogu/config"
-	"github.com/mhmorgan/rogu/fs"
 	"github.com/mhmorgan/rogu/sh"
+	"github.com/mhmorgan/rogu/utils"
 	log "github.com/mhmorgan/termlog"
 	"strings"
 )
@@ -19,12 +19,12 @@ var (
 )
 
 func init() {
-	Root = fs.RelHome(".dotfiles")
+	Root = utils.RelHome(".dotfiles")
 }
 
 // IsInstalled returns true if the dotfiles repository is installed.
 func IsInstalled() (bool, error) {
-	return fs.Exists(Root), nil
+	return utils.PathExists(Root), nil
 }
 
 // IsDirty returns true if the dotfiles repository has uncommitted changes.
@@ -40,7 +40,7 @@ func IsDirty() bool {
 func Files() ([]string, error) {
 	// ls-tree won't work if we're not home.
 	// Since this is a public function this must be handled here.
-	if err := fs.CdHome(); err != nil {
+	if err := utils.CdHome(); err != nil {
 		return nil, err
 	}
 
@@ -52,24 +52,26 @@ func Files() ([]string, error) {
 }
 
 func Install() error {
-	if err := fs.CdHome(); err != nil {
+	if err := utils.CdHome(); err != nil {
 		return err
 	}
 	if err := sh.Runf("git clone --bare %s %s", Repo, Root); err != nil {
 		return err
 	}
+
 	// Backup existing dotfiles
 	files, err := Files()
 	if err != nil {
 		return err
 	}
 	for _, file := range files {
-		if fs.Exists(file) {
-			if err = fs.Backup(file); err != nil {
+		if utils.PathExists(file) {
+			if err = utils.Backup(file); err != nil {
 				return err
 			}
 		}
 	}
+
 	// Dotfiles setup
 	gitCalls := []string{
 		"checkout " + Branch,
@@ -86,19 +88,23 @@ func Install() error {
 	return nil
 }
 
-func Pull() error {
-	if err := fs.CdHome(); err != nil {
+func Sync() error {
+	if err := utils.CdHome(); err != nil {
 		return err
 	}
+
+	var commit, push string
 	if IsDirty() {
-		return fmt.Errorf("dotfiles repository is dirty")
+		commit = gitCode("commit -am 'Sync dotfiles' ; ")
+		push = gitCode("push origin %s ; ", Branch)
 	}
-	code := gitCode("pull --rebase origin %s", Branch)
-	return sh.Run(code)
+
+	pull := gitCode("pull --rebase origin %s", Branch)
+	return sh.Runf("%s%s%s", commit, pull, push)
 }
 
 func Commit(path string) error {
-	if err := fs.CdHome(); err != nil {
+	if err := utils.CdHome(); err != nil {
 		return err
 	}
 
@@ -109,7 +115,7 @@ func Commit(path string) error {
 }
 
 func Push() error {
-	if err := fs.CdHome(); err != nil {
+	if err := utils.CdHome(); err != nil {
 		return err
 	}
 	cfg := config.Get()
@@ -118,14 +124,14 @@ func Push() error {
 }
 
 func Edit(name, editor string) error {
-	if err := fs.CdHome(); err != nil {
+	if err := utils.CdHome(); err != nil {
 		return err
 	}
 	return sh.Runf("%s %s", editor, name)
 }
 
 func gitCode(args string, a ...any) string {
-	prefix := fmt.Sprintf("git --git-dir=%s --work-tree=%s ", Root, fs.Home())
+	prefix := fmt.Sprintf("git --git-dir=%s --work-tree=%s ", Root, utils.Home())
 	if len(a) == 0 {
 		return prefix + args
 	}
