@@ -14,8 +14,16 @@ var (
 )
 
 type Config struct {
-	RoguUrlDir string `yaml:"rogu_url_dir"`
-	RoguBinary string `yaml:"-"`
+	Rogu struct {
+		UrlDir string `yaml:"url_dir"`
+		Binary string `yaml:"-"`
+		Path   string
+	}
+
+	Dotfiles struct {
+		Repo   string
+		Branch string
+	}
 
 	Scripts map[string]struct {
 		Priority  int
@@ -37,7 +45,7 @@ func Load(r io.Reader) error {
 	if err := yaml.NewDecoder(r).Decode(&cfg); err != nil {
 		return err
 	}
-	cfg.RoguBinary = roguBinary
+	cfg.Rogu.Binary = roguBinary
 	return nil
 }
 
@@ -46,10 +54,10 @@ func Get() *Config {
 }
 
 func (c *Config) RoguUrl() string {
-	if c.RoguUrlDir == "" {
+	if c.Rogu.UrlDir == "" {
 		log.Fatal("rogu_url_dir not set in config")
 	}
-	return path.Join(c.RoguUrlDir, roguBinary)
+	return path.Join(c.Rogu.UrlDir, roguBinary)
 }
 
 func Set(key, val any) {
