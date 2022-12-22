@@ -99,7 +99,7 @@ func Sync() error {
 		push = gitCode("push origin %s ; ", Branch)
 	}
 
-	pull := gitCode("pull --rebase origin %s", Branch)
+	pull := gitCode("pull --rebase origin %s ; ", Branch)
 	return sh.Runf("%s%s%s", commit, pull, push)
 }
 
