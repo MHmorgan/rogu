@@ -33,9 +33,9 @@ func fileChecker(path string) func() (bool, error) {
 	}
 }
 
-func fileInstaller(src, dst string, mode int) func() error {
+func fileInstaller(srcUrl, dst string, mode int) func() error {
 	return func() error {
-		return sh.Runf("set -x\ncurl -sSL %s -o %s\nchmod 0%o %s", src, dst, mode, dst)
+		return sh.Runf("set -x\ncurl -sSL %s -o %s\nchmod 0%o %s", srcUrl, dst, mode, dst)
 	}
 }
 
