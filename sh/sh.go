@@ -6,7 +6,13 @@ import (
 	"github.com/commander-cli/cmd"
 	"github.com/mhmorgan/rogu/config"
 	"os"
+	"os/exec"
 )
+
+func baseCommand() *exec.Cmd {
+	c := exec.Command("zsh", "-c")
+	return c
+}
 
 // Run runs a shell command which will print stdout and stderr
 // to the terminal.
@@ -14,7 +20,12 @@ func Run(s string) error {
 	if config.Bool("verbose") {
 		s = "set -x; " + s
 	}
-	c := cmd.NewCommand(s, cmd.WithCustomStdout(os.Stdout), cmd.WithCustomStderr(os.Stderr))
+	c := cmd.NewCommand(s,
+		cmd.WithCustomStdout(os.Stdout),
+		cmd.WithCustomStderr(os.Stderr),
+		cmd.WithInheritedEnvironment(nil),
+		cmd.WithCustomBaseCommand(baseCommand()),
+	)
 	if err := c.Execute(); err != nil {
 		return err
 	}
@@ -33,7 +44,12 @@ func Runf(format string, a ...interface{}) error {
 // Exec runs a shell command and returns the stdout and stderr
 // combined into a single buffer.
 func Exec(s string) (b bytes.Buffer, code int, err error) {
-	c := cmd.NewCommand(s, cmd.WithCustomStdout(&b), cmd.WithCustomStderr(&b))
+	c := cmd.NewCommand(s,
+		cmd.WithCustomStdout(&b),
+		cmd.WithCustomStderr(&b),
+		cmd.WithInheritedEnvironment(nil),
+		cmd.WithCustomBaseCommand(baseCommand()),
+	)
 	err = c.Execute()
 	code = c.ExitCode()
 	return
