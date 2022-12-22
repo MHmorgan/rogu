@@ -1,6 +1,7 @@
 package items
 
 import (
+	"fmt"
 	"github.com/mhmorgan/rogu/config"
 	"github.com/mhmorgan/rogu/fs"
 	"github.com/mhmorgan/rogu/sh"
@@ -18,7 +19,7 @@ func fileItems() (items []Item, err error) {
 			IsInstalled: fileChecker(val.Destination),
 			Install:     fileInstaller(val.Source, val.Destination, val.Mode),
 			Uninstall:   fileUninstaller(val.Destination),
-			Update:      fileUpdater(val.Source, val.Destination),
+			Update:      fileInstaller(val.Source, val.Destination, val.Mode),
 		}
 		items = append(items, item)
 	}
@@ -34,19 +35,25 @@ func fileChecker(path string) func() (bool, error) {
 }
 
 func fileInstaller(srcUrl, dst string, mode int) func() error {
+
+	// Handle compression, based on file extension
+	var curl string
+	if strings.HasSuffix(srcUrl, ".gz") {
+		curl = fmt.Sprintf("curl -sSL %s | gzcat > %s", srcUrl, dst)
+	} else if strings.HasSuffix(srcUrl, ".bz2") {
+		curl = fmt.Sprintf("curl -sSL %s | bzcat > %s", srcUrl, dst)
+	} else {
+		curl = fmt.Sprintf("curl -sSL %s -o %s", srcUrl, dst)
+	}
+
+	chmod := fmt.Sprintf("chmod 0%o %s", mode, dst)
 	return func() error {
-		return sh.Runf("set -x\ncurl -sSL %s -o %s\nchmod 0%o %s", srcUrl, dst, mode, dst)
+		return sh.Runf("set -x\n%s\n%s", curl, chmod)
 	}
 }
 
 func fileUninstaller(path string) func() error {
 	return func() error {
 		return sh.Runf("rm -f %s", path)
-	}
-}
-
-func fileUpdater(src, dst string) func() error {
-	return func() error {
-		return sh.Runf("set -x\ncurl -sSL %s -o %s", src, dst)
 	}
 }

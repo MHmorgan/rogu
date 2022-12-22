@@ -10,6 +10,6 @@ func roguItem() Item {
 		Type:        ScriptItem,
 		IsInstalled: func() (bool, error) { return true, nil },
 		Install:     fileInstaller(cfg.RoguUrl(), cfg.Rogu.Path, 0755),
-		Update:      fileUpdater(cfg.RoguUrl(), cfg.Rogu.Path),
+		Update:      fileInstaller(cfg.RoguUrl(), cfg.Rogu.Path, 0755),
 	}
 }
