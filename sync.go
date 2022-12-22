@@ -29,7 +29,13 @@ func syncFlags(flags *flag.FlagSet) {
 func sync(args []string) {
 	config.Set("update-rogu", updateRogu)
 
-	items_, err := items.All()
+	var err error
+	var items_ []items.Item
+	if len(args) == 0 {
+		items_, err = items.All()
+	} else {
+		items_, err = items.Filtered(args...)
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -60,9 +66,12 @@ func sync(args []string) {
 	}
 }
 
-const syncUsage = `usage: rogu sync [options]
+const syncUsage = `usage: rogu sync [options] [filters...]
 
 Install and update all of Rogu's items.
+
+If filters are given only items matching the filters will
+be synced.
 
 Options:
 `

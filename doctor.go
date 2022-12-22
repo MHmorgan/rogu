@@ -21,7 +21,13 @@ func doctorFlags(flags *flag.FlagSet) {
 }
 
 func doctor(args []string) {
-	items_, err := items.All()
+	var err error
+	var items_ []items.Item
+	if len(args) == 0 {
+		items_, err = items.All()
+	} else {
+		items_, err = items.Filtered(args...)
+	}
 	if err != nil {
 		log.Fatal(err)
 	}
@@ -48,9 +54,12 @@ func doctor(args []string) {
 	}
 }
 
-const doctorUsage = `usage: rogu doctor [options]
+const doctorUsage = `usage: rogu doctor [options] [filters...]
 
 Diagnose your machine.
+
+If filters are given only items matching the filters will
+be checked.
 
 Options:
 `

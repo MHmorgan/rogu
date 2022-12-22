@@ -16,6 +16,7 @@ import (
 	"github.com/mhmorgan/rogu/config"
 	"github.com/mhmorgan/rogu/dotfiles"
 	"sort"
+	"strings"
 )
 
 // All returns a list of all items defined in the config.
@@ -43,6 +44,26 @@ func All() (items []Item, err error) {
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].Priority < items[j].Priority
 	})
+	return items, nil
+}
+
+// Filtered returns a list of all items defined in the config
+// which match the given string.
+func Filtered(ss ...string) (items []Item, err error) {
+	all, err := All()
+	if err != nil {
+		return nil, err
+	}
+
+	for _, item := range all {
+		name := strings.ToLower(item.Name)
+		for _, s := range ss {
+			s = strings.ToLower(s)
+			if strings.Contains(name, s) {
+				items = append(items, item)
+			}
+		}
+	}
 	return items, nil
 }
 
