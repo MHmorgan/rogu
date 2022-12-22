@@ -2,13 +2,20 @@ package cmd
 
 import (
 	"fmt"
+	"github.com/mhmorgan/rogu/config"
 	"github.com/mhmorgan/rogu/items"
 	log "github.com/mhmorgan/termlog"
 	"github.com/spf13/cobra"
 )
 
+var (
+	updateRogu bool
+)
+
 func init() {
 	RootCmd.AddCommand(syncCmd)
+
+	syncCmd.Flags().BoolVar(&updateRogu, "rogu", false, "Update rogu itself")
 }
 
 var syncCmd = &cobra.Command{
@@ -23,6 +30,8 @@ It installs and updates:
   - Get-files`,
 
 	Run: func(cmd *cobra.Command, args []string) {
+		config.Set("update-rogu", updateRogu)
+
 		items_, err := items.All()
 		if err != nil {
 			log.Fatal(err)

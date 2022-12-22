@@ -1,3 +1,5 @@
+//go:generate stringer -type=ItemType
+
 // Package items implement the functionality for handling
 // the user items defined in the config file.
 //
@@ -11,6 +13,7 @@ package items
 
 import (
 	"fmt"
+	"github.com/mhmorgan/rogu/config"
 	"github.com/mhmorgan/rogu/dotfiles"
 	"sort"
 )
@@ -32,6 +35,10 @@ func All() (items []Item, err error) {
 		items = append(items, i...)
 	}
 
+	if config.Bool("update-rogu") {
+		items = append(items, roguItem())
+	}
+
 	items = append(items, dotfileItem())
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].Priority < items[j].Priority
@@ -43,21 +50,10 @@ type ItemType int
 
 const (
 	DotfileItem ItemType = iota
+	RoguItem
 	FileItem
 	ScriptItem
 )
-
-func (i ItemType) String() string {
-	switch i {
-	case DotfileItem:
-		return "Dotfile"
-	case FileItem:
-		return "File"
-	case ScriptItem:
-		return "Script"
-	}
-	panic("unreachable")
-}
 
 type Item struct {
 	Name        string
