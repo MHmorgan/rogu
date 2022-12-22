@@ -4,7 +4,7 @@ EXE := rogu
 
 # All platforms must support amd64 and arm64, or else the
 # build target needs to be updated as well.
-PLATFORMS := windows linux darwin
+PLATFORMS := linux darwin
 
 # -s : Dead code elimination
 # -w : Disable DWARF generation
