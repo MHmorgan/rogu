@@ -14,17 +14,20 @@ FLAGS = -tags netgo,static -ldflags "-s -w" -trimpath
 
 # Required:
 # go install honnef.co/go/tools/cmd/staticcheck@latest
-all:
+all: generate
 	go mod tidy
 	go vet ./...
 	staticcheck ./...
 	go test -race ./...
 
-build: clean $(PLATFORMS)
+build: clean generate $(PLATFORMS)
 
 $(PLATFORMS):
 	GOOS=$@ GOARCH=arm64 go build -o $(EXE)_$@_arm64 $(FLAGS)
 	GOOS=$@ GOARCH=amd64 go build -o $(EXE)_$@_amd64 $(FLAGS)
+
+generate:
+	go generate ./...
 
 clean:
 	go clean
