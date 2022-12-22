@@ -1,8 +1,5 @@
 package dotfiles
 
-// TODO Use github.com/go-git/go-git/v5
-// TODO Edit dotfiles through rogu
-
 import (
 	"fmt"
 	"github.com/mhmorgan/rogu/config"
