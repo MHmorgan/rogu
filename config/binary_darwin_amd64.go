@@ -1,5 +1,5 @@
 package config
 
 func init() {
-	roguBinary = "rogu_darwin_amd64"
+	roguBinary = "rogu_darwin_amd64.gz"
 }
