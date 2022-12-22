@@ -10,12 +10,14 @@ import (
 
 var (
 	cfgFile string
+	verbose bool
 )
 
 func init() {
 	cobra.OnInitialize(initConfig)
 	pf := RootCmd.PersistentFlags()
 	pf.StringVar(&cfgFile, "config", fs.RelHome(".rogu"), "config file")
+	pf.BoolVarP(&verbose, "verbose", "v", false, "verbose output")
 }
 
 func initConfig() {
@@ -31,6 +33,8 @@ func initConfig() {
 	if err := config.Load(f); err != nil {
 		log.Fatal(err)
 	}
+
+	config.Set("verbose", verbose)
 }
 
 var RootCmd = &cobra.Command{

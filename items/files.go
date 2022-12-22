@@ -35,20 +35,19 @@ func fileChecker(path string) func() (bool, error) {
 }
 
 func fileInstaller(srcUrl, dst string, mode int) func() error {
-
 	// Handle compression, based on file extension
 	var curl string
 	if strings.HasSuffix(srcUrl, ".gz") {
-		curl = fmt.Sprintf("curl -sSL %s | gzcat > %s", srcUrl, dst)
+		curl = fmt.Sprintf("curl -sSL %s | gzcat > %s ;", srcUrl, dst)
 	} else if strings.HasSuffix(srcUrl, ".bz2") {
-		curl = fmt.Sprintf("curl -sSL %s | bzcat > %s", srcUrl, dst)
+		curl = fmt.Sprintf("curl -sSL %s | bzcat > %s ;", srcUrl, dst)
 	} else {
-		curl = fmt.Sprintf("curl -sSL %s -o %s", srcUrl, dst)
+		curl = fmt.Sprintf("curl -sSL %s -o %s ;", srcUrl, dst)
 	}
 
-	chmod := fmt.Sprintf("chmod 0%o %s", mode, dst)
+	chmod := fmt.Sprintf("chmod 0%o %s ;", mode, dst)
 	return func() error {
-		return sh.Runf("set -x\n%s\n%s", curl, chmod)
+		return sh.Runf("%s%s", curl, chmod)
 	}
 }
 

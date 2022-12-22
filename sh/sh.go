@@ -4,17 +4,24 @@ import (
 	"bytes"
 	"fmt"
 	"github.com/commander-cli/cmd"
+	"github.com/mhmorgan/rogu/config"
 	"os"
 )
 
 // Run runs a shell command which will print stdout and stderr
 // to the terminal.
-func Run(code string) error {
-	return cmd.NewCommand(
-		code,
-		cmd.WithCustomStdout(os.Stdout),
-		cmd.WithCustomStderr(os.Stderr),
-	).Execute()
+func Run(s string) error {
+	if config.Bool("verbose") {
+		s = "set -x; " + s
+	}
+	c := cmd.NewCommand(s, cmd.WithCustomStdout(os.Stdout), cmd.WithCustomStderr(os.Stderr))
+	if err := c.Execute(); err != nil {
+		return err
+	}
+	if c.ExitCode() != 0 {
+		return fmt.Errorf("exit code %d", c.ExitCode())
+	}
+	return nil
 }
 
 // Runf runs a shell command which will print stdout and stderr
