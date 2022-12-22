@@ -5,6 +5,7 @@ package dotfiles
 
 import (
 	"fmt"
+	"github.com/mhmorgan/rogu/config"
 	"github.com/mhmorgan/rogu/fs"
 	"github.com/mhmorgan/rogu/sh"
 	log "github.com/mhmorgan/termlog"
@@ -85,7 +86,7 @@ func Install() error {
 	return nil
 }
 
-func Update() error {
+func Pull() error {
 	if err := fs.CdHome(); err != nil {
 		return err
 	}
@@ -94,6 +95,33 @@ func Update() error {
 	}
 	code := gitCode("pull --rebase origin %s", Branch)
 	return sh.Run(code)
+}
+
+func Commit(path string) error {
+	if err := fs.CdHome(); err != nil {
+		return err
+	}
+
+	add := gitCode("add %s ; ", path)
+	commit := gitCode("commit -m 'Update %s' ; ", path)
+
+	return sh.Runf("%s%s", add, commit)
+}
+
+func Push() error {
+	if err := fs.CdHome(); err != nil {
+		return err
+	}
+	cfg := config.Get()
+	push := gitCode("push origin %s", cfg.Dotfiles.Branch)
+	return sh.Run(push)
+}
+
+func Edit(name, editor string) error {
+	if err := fs.CdHome(); err != nil {
+		return err
+	}
+	return sh.Runf("%s %s", editor, name)
 }
 
 func gitCode(args string, a ...any) string {

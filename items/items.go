@@ -81,6 +81,6 @@ func dotfileItem() Item {
 		Type:        DotfileItem,
 		IsInstalled: dotfiles.IsInstalled,
 		Install:     dotfiles.Install,
-		Update:      dotfiles.Update,
+		Update:      dotfiles.Pull,
 	}
 }
