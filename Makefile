@@ -24,7 +24,9 @@ build: clean generate $(PLATFORMS)
 
 $(PLATFORMS):
 	GOOS=$@ GOARCH=arm64 go build -o $(EXE)_$@_arm64 $(FLAGS)
+	gzip $(EXE)_$@_arm64
 	GOOS=$@ GOARCH=amd64 go build -o $(EXE)_$@_amd64 $(FLAGS)
+	gzip $(EXE)_$@_amd64
 
 generate:
 	go generate ./...
