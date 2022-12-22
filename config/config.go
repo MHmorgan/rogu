@@ -4,6 +4,7 @@ import (
 	log "github.com/mhmorgan/termlog"
 	"gopkg.in/yaml.v3"
 	"io"
+	"os"
 	"path"
 )
 
@@ -47,6 +48,19 @@ func Load(r io.Reader) error {
 	}
 	cfg.Rogu.Binary = roguBinary
 	return nil
+}
+
+func Loadf(path string) error {
+	f, err := os.Open(path)
+	if err != nil {
+		log.Fatal(err)
+	}
+	defer func() {
+		if err := f.Close(); err != nil {
+			log.Error(err)
+		}
+	}()
+	return Load(f)
 }
 
 func Get() *Config {
