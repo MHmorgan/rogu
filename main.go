@@ -7,6 +7,7 @@ import (
 	"github.com/mhmorgan/rogu/utils"
 	log "github.com/mhmorgan/termlog"
 	"os"
+	"strings"
 )
 
 var (
@@ -82,6 +83,20 @@ func findCommand(s string) (name string) {
 		}
 	}
 	return
+}
+
+func nameMatch(name string, ss []string) bool {
+	if len(ss) == 0 {
+		return true
+	}
+	name = strings.ToLower(name)
+	for _, s := range ss {
+		s = strings.ToLower(s)
+		if strings.Contains(name, s) {
+			return true
+		}
+	}
+	return false
 }
 
 const mainUsage = `usage: rogu <command> [arguments]

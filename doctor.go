@@ -21,35 +21,28 @@ func doctorFlags(flags *flag.FlagSet) {
 }
 
 func doctor(args []string) {
-	var err error
-	var items_ []items.Item
-	if len(args) == 0 {
-		items_, err = items.All()
-	} else {
-		items_, err = items.Filtered(args...)
-	}
-	if err != nil {
+	var itms []items.Item
+	if ii, err := items.All(); err != nil {
 		log.Fatal(err)
+	} else {
+		for _, item := range ii {
+			if nameMatch(item.Name(), args) {
+				itms = append(itms, item)
+			}
+		}
 	}
 
-	for _, item := range items_ {
-		if item.IsInstalled == nil {
-			log.Errorf("%v has no installation check", item.Name)
+	for _, item := range itms {
+		h := item.Handlers()
+		if h.Check == nil {
+			log.Errorf("%v has no check", item.Name())
 			continue
 		}
-		switch installed, err := item.IsInstalled(); {
-		case err != nil:
-			log.Errorf("%v IsInstalled: %v", item.Name, err)
-		case !installed && item.Install == nil:
-			log.Badf("%v is not installed and I don't know how to install it!", item.Name)
-		case !installed:
-			log.Emphf("Not installed: %v", item.Name)
-		case installed:
-			if item.Update != nil {
-				log.Goodf("Installed & updated: %v", item.Name)
-			} else {
-				log.Goodf("Installed: %v", item.Name)
-			}
+
+		if err := h.Check(); err != nil {
+			log.Badf("%v ... %v", item.Name(), err)
+		} else {
+			log.Goodf("%v ... OK", item.Name())
 		}
 	}
 }

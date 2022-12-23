@@ -3,7 +3,6 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/mhmorgan/rogu/config"
 	"github.com/mhmorgan/rogu/items"
 	log "github.com/mhmorgan/termlog"
 	"os"
@@ -27,38 +26,40 @@ func syncFlags(flags *flag.FlagSet) {
 }
 
 func sync(args []string) {
-	config.Set("update-rogu", updateRogu)
-
-	var err error
-	var items_ []items.Item
-	if len(args) == 0 {
-		items_, err = items.All()
-	} else {
-		items_, err = items.Filtered(args...)
-	}
-	if err != nil {
+	var itms []items.Item
+	if ii, err := items.All(); err != nil {
 		log.Fatal(err)
+	} else {
+		for _, item := range ii {
+			if !(updateRogu || item.Type() != items.RoguItem) {
+				continue
+			}
+			if nameMatch(item.Name(), args) {
+				itms = append(itms, item)
+			}
+		}
 	}
 
-	for _, item := range items_ {
-		if item.IsInstalled == nil {
-			log.Fatalf("%s has no installation check", item.Name)
+	for _, item := range itms {
+		h := item.Handlers()
+		if h.IsInstalled == nil {
+			log.Fatalf("%s has no installation check", item.Name())
 		}
-		installed, err := item.IsInstalled()
+		installed, err := h.IsInstalled()
 		if err != nil {
 			log.Fatal(err)
 		}
 
 		if !installed {
-			if item.Install != nil {
-				log.Emphf("Installing %s", item.Name)
-				err = item.Install()
+			if h.Install != nil {
+				log.Emphf("Installing %s", item.Name())
+				err = h.Install()
 			} else {
-				log.Warnf("I don't know how to install %s", item.Name)
+				log.Warnf("I don't know how to install %s", item.Name())
 			}
-		} else if item.Update != nil {
-			log.Emphf("Updating %s", item.Name)
-			err = item.Update()
+		} else if h.Update != nil {
+			log.Infof("Updating %s", item.Name())
+			err = h.Update()
 		}
 		if err != nil {
 			log.Fatal(err)

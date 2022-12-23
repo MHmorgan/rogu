@@ -8,15 +8,12 @@
 // or updating items.
 //
 // Files are items which define files to be managed by Rogu,
-// which will install and keep them up to date.
+// which will installer and keep them up to date.
 package items
 
 import (
 	"fmt"
-	"github.com/mhmorgan/rogu/config"
-	"github.com/mhmorgan/rogu/dotfiles"
 	"sort"
-	"strings"
 )
 
 // All returns a list of all items defined in the config.
@@ -24,7 +21,6 @@ import (
 // The list is sorted by priority, with the highest priority
 // items first.
 func All() (items []Item, err error) {
-
 	if i, err := scriptItems(); err != nil {
 		return nil, err
 	} else {
@@ -36,34 +32,11 @@ func All() (items []Item, err error) {
 		items = append(items, i...)
 	}
 
-	if config.Bool("update-rogu") {
-		items = append(items, roguItem())
-	}
-
-	items = append(items, dotfileItem())
+	items = append(items, dotfilesItem{})
+	items = append(items, roguItem{})
 	sort.Slice(items, func(i, j int) bool {
-		return items[i].Priority < items[j].Priority
+		return items[i].Priority() < items[j].Priority()
 	})
-	return items, nil
-}
-
-// Filtered returns a list of all items defined in the config
-// which match the given string.
-func Filtered(ss ...string) (items []Item, err error) {
-	all, err := All()
-	if err != nil {
-		return nil, err
-	}
-
-	for _, item := range all {
-		name := strings.ToLower(item.Name)
-		for _, s := range ss {
-			s = strings.ToLower(s)
-			if strings.Contains(name, s) {
-				items = append(items, item)
-			}
-		}
-	}
 	return items, nil
 }
 
@@ -76,32 +49,28 @@ const (
 	ScriptItem
 )
 
-type Item struct {
-	Name        string
-	Priority    int // Lower numbers are higher priority
-	Type        ItemType
-	IsInstalled func() (bool, error)
-	Install     func() error
-	Uninstall   func() error
-	Update      func() error
+// Item
+
+type Item interface {
+	fmt.Stringer
+	Name() string
+	Priority() int // Lower numbers are higher priority.
+	Type() ItemType
+	Handlers() ItemHandlers
 }
 
-func (i Item) String() string {
-	return fmt.Sprintf(
-		"Item{Name: %s, Priority: %d, Type: %s}",
-		i.Name,
-		i.Priority,
-		i.Type,
-	)
-}
+type Fn func() error
+type BoolFn func() (bool, error)
 
-func dotfileItem() Item {
-	return Item{
-		Name:        "Dotfiles",
-		Priority:    0,
-		Type:        DotfileItem,
-		IsInstalled: dotfiles.IsInstalled,
-		Install:     dotfiles.Install,
-		Update:      dotfiles.Sync,
-	}
+type ItemHandlers struct {
+	// Check runs any number of checks to determine if
+	// the item is OK.
+	//
+	// The checks can be: is the item installed, is the
+	// item up to date, etc.
+	Check       Fn
+	IsInstalled BoolFn
+	Install     Fn
+	Uninstall   Fn
+	Update      Fn
 }

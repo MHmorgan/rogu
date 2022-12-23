@@ -32,11 +32,13 @@ type Config struct {
 	}
 
 	Scripts map[string]struct {
-		Priority  int
-		Check     string
-		Install   string
-		Uninstall string
-		Update    string
+		Priority          int
+		Check             string // Defaults to IsInstalled
+		IsInstalled       string
+		Install           string
+		Uninstall         string // Optional
+		Update            string // Optional
+		UpdateWithInstall bool   `yaml:"update_with_install"`
 	}
 
 	Files map[string]struct {

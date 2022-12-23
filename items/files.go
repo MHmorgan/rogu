@@ -5,6 +5,7 @@ import (
 	"github.com/mhmorgan/rogu/config"
 	"github.com/mhmorgan/rogu/sh"
 	"github.com/mhmorgan/rogu/utils"
+	"os"
 	"strings"
 )
 
@@ -12,25 +13,36 @@ func fileItems() (items []Item, err error) {
 	cfg := config.Get()
 
 	for name, val := range cfg.Files {
-		item := Item{
-			Name:        name,
-			Type:        FileItem,
-			Priority:    val.Priority,
-			IsInstalled: fileChecker(val.Destination),
-			Install:     fileInstaller(val.Source, val.Destination, val.Mode),
-			Uninstall:   fileUninstaller(val.Destination),
-			Update:      fileInstaller(val.Source, val.Destination, val.Mode),
+		item := fileItem{
+			name:     name,
+			priority: val.Priority,
+			url:      val.Source,
+			dst:      val.Destination,
+			mode:     val.Mode,
+		}
+		if item.mode == 0 {
+			item.mode = 0644
 		}
 		items = append(items, item)
 	}
 	return
 }
 
-func fileChecker(path string) func() (bool, error) {
+func fileChecker(name, url, dst string) func() error {
 	home := utils.Home()
-	path = strings.Replace(path, "~", home, 1)
-	return func() (bool, error) {
-		return utils.PathExists(path), nil
+	dst = strings.Replace(dst, "~", home, 1)
+
+	return func() error {
+		if resp, _, err := utils.UrlExists(url); err != nil {
+			return err
+		} else if resp != 200 {
+			return fmt.Errorf("%s: bad URL (response %d): %q", name, resp, url)
+		}
+
+		if ok := utils.PathExists(dst); !ok {
+			return fmt.Errorf("%s: %w", dst, os.ErrNotExist)
+		}
+		return nil
 	}
 }
 
@@ -58,8 +70,48 @@ func fileInstaller(srcUrl, dst string, mode int) func() error {
 	}
 }
 
-func fileUninstaller(path string) func() error {
-	return func() error {
-		return sh.Runf("rm -f %s", path)
+// File item
+
+type fileItem struct {
+	name     string
+	priority int
+	url      string
+	dst      string
+	mode     int
+}
+
+func (f fileItem) String() string {
+	return f.name
+}
+
+func (f fileItem) Name() string {
+	return f.name
+}
+
+func (f fileItem) Priority() int {
+	return f.priority
+}
+
+func (f fileItem) Type() ItemType {
+	return FileItem
+}
+
+func (f fileItem) Handlers() ItemHandlers {
+	h := ItemHandlers{
+		Check:   fileChecker(f.name, f.url, f.dst),
+		Install: fileInstaller(f.url, f.dst, f.mode),
+		Update:  fileInstaller(f.url, f.dst, f.mode),
 	}
+
+	h.IsInstalled = func() (bool, error) {
+		home := utils.Home()
+		f.dst = strings.Replace(f.dst, "~", home, 1)
+		return utils.PathExists(f.dst), nil
+	}
+
+	h.Uninstall = func() error {
+		return sh.Runf("rm -f %s", f.dst)
+	}
+
+	return h
 }

@@ -1,8 +1,8 @@
 package dotfiles
 
 import (
+	"errors"
 	"fmt"
-	"github.com/mhmorgan/rogu/config"
 	"github.com/mhmorgan/rogu/sh"
 	"github.com/mhmorgan/rogu/utils"
 	log "github.com/mhmorgan/termlog"
@@ -17,6 +17,31 @@ var (
 
 func init() {
 	Root = utils.RelHome(".dotfiles")
+}
+
+func Check() error {
+	if !utils.PathExists(Root) {
+		return errors.New("dotfiles repository not installed")
+	}
+
+	if err := utils.CdHome(); err != nil {
+		return err
+	}
+
+	files, err := Files()
+	if err != nil {
+		return err
+	}
+	for _, file := range files {
+		if !utils.PathExists(file) {
+			return fmt.Errorf("dotfile %q is missing", file)
+		}
+	}
+
+	if IsDirty() {
+		return errors.New("dotfiles repository has uncommitted changes")
+	}
+	return nil
 }
 
 // IsInstalled returns true if the dotfiles repository is installed.
@@ -34,10 +59,10 @@ func IsDirty() bool {
 }
 
 // Files returns the list of dotfiles in the dotfiles repository.
-func Files() ([]string, error) {
+func Files() (files []string, err error) {
 	// ls-tree won't work if we're not home.
 	// Since this is a public function this must be handled here.
-	if err := utils.CdHome(); err != nil {
+	if err = utils.CdHome(); err != nil {
 		return nil, err
 	}
 
@@ -45,7 +70,14 @@ func Files() ([]string, error) {
 	if err != nil {
 		return nil, fmt.Errorf("git ls-tree: %w", err)
 	}
-	return strings.Split(out.String(), "\n"), nil
+
+	for _, file := range strings.Split(out.String(), "\n") {
+		file = strings.TrimSpace(file)
+		if file != "" {
+			files = append(files, file)
+		}
+	}
+	return
 }
 
 func Install() error {
@@ -98,33 +130,6 @@ func Sync() error {
 
 	pull := gitCode("pull --rebase origin %s ; ", Branch)
 	return sh.Runf("%s%s%s", commit, pull, push)
-}
-
-func Commit(path string) error {
-	if err := utils.CdHome(); err != nil {
-		return err
-	}
-
-	add := gitCode("add %s ; ", path)
-	commit := gitCode("commit -m 'Update %s' ; ", path)
-
-	return sh.Runf("%s%s", add, commit)
-}
-
-func Push() error {
-	if err := utils.CdHome(); err != nil {
-		return err
-	}
-	cfg := config.Get()
-	push := gitCode("push origin %s", cfg.Dotfiles.Branch)
-	return sh.Run(push)
-}
-
-func Edit(name, editor string) error {
-	if err := utils.CdHome(); err != nil {
-		return err
-	}
-	return sh.Runf("%s %s", editor, name)
 }
 
 func gitCode(args string, a ...any) string {
