@@ -97,14 +97,13 @@ Rogu is my personal UNIX assistant.
 
 The commands are:
 
-	boilerplate  download a boilerplate file
-	doctor       diagnose your machine
-	help         show this help
-	list	     list all dotfiles
-	sync         install and update Rogu's items
+    boilerplate  download a boilerplate file
+    doctor       diagnose your machine
+    help         show this help
+    list	     list all dotfiles
+    sync         install and update Rogu's items
 
 Environment variables:
 
-	ROGU_CONFIG  Path to config file (default: ~/.rogu)
-
+    ROGU_CONFIG  Path to config file (default: ~/.rogu)
 `
