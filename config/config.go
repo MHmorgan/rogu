@@ -6,12 +6,13 @@ import (
 	"io"
 	"os"
 	"path"
+	"sync"
 )
 
 var (
 	cfg        Config
 	roguBinary string
-	values     = make(map[any]any)
+	values     = sync.Map{}
 )
 
 type Config struct {
@@ -79,16 +80,18 @@ func (c *Config) RoguUrl() string {
 }
 
 func Set(key, val any) {
-	values[key] = val
+	values.Store(key, val)
 }
 
-func Value(key any) any {
-	return values[key]
+func Value(key any) (any, bool) {
+	return values.Load(key)
 }
 
 func Bool(key any) bool {
-	if val, ok := values[key].(bool); ok {
-		return val
+	if val, ok := values.Load(key); ok {
+		if b, ok := val.(bool); ok {
+			return b
+		}
 	}
 	return false
 }
