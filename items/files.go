@@ -6,6 +6,7 @@ import (
 	"github.com/mhmorgan/rogu/sh"
 	"github.com/mhmorgan/rogu/utils"
 	"os"
+	"path/filepath"
 	"strings"
 )
 
@@ -47,17 +48,21 @@ func fileChecker(name, url, dst string) func() error {
 }
 
 func fileInstaller(srcUrl, dst string, mode int) func() error {
+	tmpDir := os.ExpandEnv("$HOME/.cache/rogu")
+	tmpFile := filepath.Join("~/.cache/rogu", filepath.Base(dst))
+
 	// Handle compression, based on file extension
 	var curl string
 	if strings.HasSuffix(srcUrl, ".gz") {
-		curl = fmt.Sprintf("curl -sSL %s | gzcat > %s ;", srcUrl, dst)
+		curl = fmt.Sprintf("curl -sSLf %s | gzcat > %s || exit 1 ; ", srcUrl, tmpFile)
 	} else if strings.HasSuffix(srcUrl, ".bz2") {
-		curl = fmt.Sprintf("curl -sSL %s | bzcat > %s ;", srcUrl, dst)
+		curl = fmt.Sprintf("curl -sSLf %s | bzcat > %s || exit 1 ; ", srcUrl, tmpFile)
 	} else {
-		curl = fmt.Sprintf("curl -sSL %s -o %s ;", srcUrl, dst)
+		curl = fmt.Sprintf("curl -sSLf %s -o %s || exit 1 ; ", srcUrl, tmpFile)
 	}
 
-	chmod := fmt.Sprintf("chmod 0%o %s ;", mode, dst)
+	mv := fmt.Sprintf("mv %s %s ; ", tmpFile, dst)
+	chmod := fmt.Sprintf("chmod 0%o %s ; ", mode, dst)
 	return func() error {
 		resp, ok, err := utils.UrlExists(srcUrl)
 		if err != nil {
@@ -66,7 +71,12 @@ func fileInstaller(srcUrl, dst string, mode int) func() error {
 		if !ok {
 			return fmt.Errorf("URL %q does not exist (response %d)", srcUrl, resp)
 		}
-		return sh.Runf("%s%s", curl, chmod)
+		if !utils.PathExists(tmpDir) {
+			if err := os.MkdirAll(tmpDir, 0755); err != nil {
+				return err
+			}
+		}
+		return sh.Runf("%s%s%s", curl, mv, chmod)
 	}
 }
 
