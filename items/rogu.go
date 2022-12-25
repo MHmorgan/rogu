@@ -17,7 +17,7 @@ func (r roguItem) Name() string {
 }
 
 func (r roguItem) Priority() int {
-	return -666
+	return 666
 }
 
 func (r roguItem) Type() ItemType {

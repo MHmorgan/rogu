@@ -35,7 +35,7 @@ func All() (items []Item, err error) {
 	items = append(items, dotfilesItem{})
 	items = append(items, roguItem{})
 	sort.Slice(items, func(i, j int) bool {
-		return items[i].Priority() < items[j].Priority()
+		return items[i].Priority() > items[j].Priority()
 	})
 	return items, nil
 }
@@ -54,7 +54,7 @@ const (
 type Item interface {
 	fmt.Stringer
 	Name() string
-	Priority() int // Lower numbers are higher priority.
+	Priority() int // Higher numbers are higher priority.
 	Type() ItemType
 	Handlers() ItemHandlers
 }

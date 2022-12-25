@@ -15,7 +15,7 @@ func (d dotfilesItem) Name() string {
 }
 
 func (d dotfilesItem) Priority() int {
-	return 0
+	return 60
 }
 
 func (d dotfilesItem) Type() ItemType {
