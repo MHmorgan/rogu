@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/mhmorgan/rogu/config"
 	"github.com/mhmorgan/rogu/items"
 	log "github.com/mhmorgan/termlog"
 	"os"
@@ -41,9 +42,14 @@ func sync(args []string) {
 	}
 
 	for _, item := range itms {
+		var pri string
+		if config.Bool("verbose") {
+			pri = fmt.Sprintf("(%3d) ", item.Priority())
+		}
+
 		h := item.Handlers()
 		if h.IsInstalled == nil {
-			log.Fatalf("%s has no installation check", item.Name())
+			log.Fatalf("%s%s has no installation check", pri, item.Name())
 		}
 		installed, err := h.IsInstalled()
 		if err != nil {
@@ -52,13 +58,13 @@ func sync(args []string) {
 
 		if !installed {
 			if h.Install != nil {
-				log.Emphf("Installing %s", item.Name())
+				log.Emphf("%sInstalling %s", pri, item.Name())
 				err = h.Install()
 			} else {
-				log.Warnf("I don't know how to install %s", item.Name())
+				log.Warnf("%sI don't know how to install %s", pri, item.Name())
 			}
 		} else if h.Update != nil {
-			log.Infof("Updating %s", item.Name())
+			log.Infof("%sUpdating %s", pri, item.Name())
 			err = h.Update()
 		}
 		if err != nil {

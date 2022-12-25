@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	"github.com/mhmorgan/rogu/config"
 	"github.com/mhmorgan/rogu/items"
 	log "github.com/mhmorgan/termlog"
 	"os"
@@ -33,16 +34,21 @@ func doctor(args []string) {
 	}
 
 	for _, item := range itms {
+		var pri string
+		if config.Bool("verbose") {
+			pri = fmt.Sprintf("(%3d) ", item.Priority())
+		}
+
 		h := item.Handlers()
 		if h.Check == nil {
-			log.Errorf("%v has no check", item.Name())
+			log.Errorf("%s%v has no check", pri, item.Name())
 			continue
 		}
 
 		if err := h.Check(); err != nil {
-			log.Badf("%v ... %v", item.Name(), err)
+			log.Badf("%s%v ... %v", pri, item.Name(), err)
 		} else {
-			log.Goodf("%v ... OK", item.Name())
+			log.Goodf("%s%v ... OK", pri, item.Name())
 		}
 	}
 }
