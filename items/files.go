@@ -10,6 +10,10 @@ import (
 	"strings"
 )
 
+func init() {
+	itemsFactories = append(itemsFactories, fileItems)
+}
+
 func fileItems() (items []Item, err error) {
 	cfg := config.Get()
 

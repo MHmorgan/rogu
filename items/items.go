@@ -16,23 +16,22 @@ import (
 	"sort"
 )
 
+type itemsFactory func() ([]Item, error)
+
+var itemsFactories []itemsFactory
+
 // All returns a list of all items defined in the config.
 //
 // The list is sorted by priority, with the highest priority
 // items first.
 func All() (items []Item, err error) {
-	if i, err := scriptItems(); err != nil {
-		return nil, err
-	} else {
-		items = append(items, i...)
+	for _, f := range itemsFactories {
+		if ii, err := f(); err != nil {
+			return nil, err
+		} else {
+			items = append(items, ii...)
+		}
 	}
-	if i, err := fileItems(); err != nil {
-		return nil, err
-	} else {
-		items = append(items, i...)
-	}
-
-	items = append(items, dotfilesItem{})
 	items = append(items, roguItem{})
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].Priority() > items[j].Priority()

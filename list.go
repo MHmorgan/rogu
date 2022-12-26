@@ -3,7 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
-	"github.com/mhmorgan/rogu/dotfiles"
+	"github.com/mhmorgan/rogu/git"
 	log "github.com/mhmorgan/termlog"
 	"os"
 )
@@ -21,7 +21,11 @@ func listFlags(flags *flag.FlagSet) {
 }
 
 func list(args []string) {
-	files, err := dotfiles.Files()
+	repo, err := git.DotfilesRepo()
+	if err != nil {
+		log.Fatal(err)
+	}
+	files, err := repo.Files()
 	if err != nil {
 		log.Fatal(err)
 	}

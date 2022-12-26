@@ -7,6 +7,10 @@ import (
 	"github.com/mhmorgan/rogu/sh"
 )
 
+func init() {
+	itemsFactories = append(itemsFactories, scriptItems)
+}
+
 func scriptItems() (items []Item, err error) {
 	cfg := config.Get()
 

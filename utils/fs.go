@@ -30,12 +30,14 @@ func RelHome(path string) string {
 // CdHome changes the current working directory to the
 // home directory of the current user, or calls log.Fatal
 // if it cannot be determined.
-func CdHome() error {
+func CdHome() {
 	home, err := os.UserHomeDir()
 	if err != nil {
 		log.Fatal(err)
 	}
-	return os.Chdir(home)
+	if err := os.Chdir(home); err != nil {
+		log.Fatal(err)
+	}
 }
 
 // PathExists returns true if the given path exists.

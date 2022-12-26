@@ -12,11 +12,12 @@ func _() {
 	_ = x[RoguItem-1]
 	_ = x[FileItem-2]
 	_ = x[ScriptItem-3]
+	_ = x[TemplateItem-4]
 }
 
-const _ItemType_name = "DotfileItemRoguItemFileItemScriptItem"
+const _ItemType_name = "DotfileItemRoguItemFileItemScriptItemTemplateItem"
 
-var _ItemType_index = [...]uint8{0, 11, 19, 27, 37}
+var _ItemType_index = [...]uint8{0, 11, 19, 27, 37, 49}
 
 func (i ItemType) String() string {
 	if i < 0 || i >= ItemType(len(_ItemType_index)-1) {
