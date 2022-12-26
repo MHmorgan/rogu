@@ -107,7 +107,7 @@ const mainUsage = `usage: rogu <command> [arguments]
 |  _ < (_) | (_| | |_| |
 |_| \_\___/ \__, |\__,_|
             |___/       
- 	
+
 Rogu is my personal UNIX assistant.
 
 The commands are:
@@ -116,7 +116,7 @@ The commands are:
     doctor       diagnose your machine
     help         show this help
     init         initialize a new git repository
-    list	     list all dotfiles
+    list         list all dotfiles
     sync         install and update Rogu's items
 
 Environment variables:
