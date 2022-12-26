@@ -15,6 +15,11 @@ var (
 	values     = sync.Map{}
 )
 
+const (
+	DefaultBranch = "main"
+	DefaultMode   = 0644
+)
+
 type Config struct {
 	Rogu struct {
 		UrlDir string `yaml:"url_dir"`
@@ -23,8 +28,8 @@ type Config struct {
 	}
 
 	Dotfiles struct {
-		Repo   string
-		Branch string
+		Url    string // Git URL
+		Branch string // Optional
 	}
 
 	Boilerplates struct {
@@ -32,20 +37,26 @@ type Config struct {
 	}
 
 	Scripts map[string]struct {
-		Priority          int
+		Priority          int    // Optional
 		Check             string // Defaults to IsInstalled
 		IsInstalled       string
 		Install           string
 		Uninstall         string // Optional
 		Update            string // Optional
-		UpdateWithInstall bool   `yaml:"update_with_install"`
+		UpdateWithInstall bool   `yaml:"update_with_install"` // Optional
 	}
 
 	Files map[string]struct {
-		Priority    int
-		Source      string
-		Destination string
-		Mode        int
+		Priority int    // Optional
+		Url      string // File URL
+		Dst      string // File path
+		Mode     int    // Optional
+	}
+
+	Templates map[string]struct {
+		Priority int    // Optional
+		Url      string // Git URL
+		Branch   string // Optional
 	}
 }
 

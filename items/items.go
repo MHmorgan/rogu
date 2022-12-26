@@ -32,7 +32,7 @@ func All() (items []Item, err error) {
 			items = append(items, ii...)
 		}
 	}
-	items = append(items, roguItem{})
+	items = append(items, Rogu{})
 	sort.Slice(items, func(i, j int) bool {
 		return items[i].Priority() > items[j].Priority()
 	})
@@ -46,6 +46,7 @@ const (
 	RoguItem
 	FileItem
 	ScriptItem
+	TemplateItem
 )
 
 // Item

@@ -21,36 +21,40 @@ func init() {
 
 func DotfilesItem() Item {
 	cfg := config.Get()
-	return dotfilesItem{
+	item := Dotfiles{
 		root:   os.ExpandEnv("$HOME/.dotfiles"),
-		url:    cfg.Dotfiles.Repo,
+		url:    cfg.Dotfiles.Url,
 		branch: cfg.Dotfiles.Branch,
 	}
+	if item.branch == "" {
+		item.branch = config.DefaultBranch
+	}
+	return item
 }
 
-type dotfilesItem struct {
+type Dotfiles struct {
 	root   string
 	url    string
 	branch string
 }
 
-func (d dotfilesItem) String() string {
+func (d Dotfiles) String() string {
 	return dotfilesItemName
 }
 
-func (d dotfilesItem) Name() string {
+func (d Dotfiles) Name() string {
 	return dotfilesItemName
 }
 
-func (d dotfilesItem) Priority() int {
+func (d Dotfiles) Priority() int {
 	return 60
 }
 
-func (d dotfilesItem) Type() ItemType {
+func (d Dotfiles) Type() ItemType {
 	return DotfileItem
 }
 
-func (d dotfilesItem) Handlers() ItemHandlers {
+func (d Dotfiles) Handlers() ItemHandlers {
 	return ItemHandlers{
 		Check:       d.checker(),
 		IsInstalled: d.isInstalled(),
@@ -59,13 +63,10 @@ func (d dotfilesItem) Handlers() ItemHandlers {
 	}
 }
 
-func (d dotfilesItem) checker() Fn {
+func (d Dotfiles) checker() Fn {
 	return func() error {
 		repo, err := git.DotfilesRepo()
 		if err != nil {
-			if errors.Is(err, os.ErrNotExist) {
-				return errors.New("dotfiles repository not installed")
-			}
 			return err
 		}
 		utils.CdHome()
@@ -89,7 +90,7 @@ func (d dotfilesItem) checker() Fn {
 	}
 }
 
-func (d dotfilesItem) installer() Fn {
+func (d Dotfiles) installer() Fn {
 	return func() error {
 		if err := git.CloneBare(d.url, d.root); err != nil {
 			return err
@@ -123,7 +124,7 @@ func (d dotfilesItem) installer() Fn {
 	}
 }
 
-func (d dotfilesItem) updater() Fn {
+func (d Dotfiles) updater() Fn {
 	return func() error {
 		repo, err := git.DotfilesRepo()
 		if err != nil {
@@ -134,7 +135,7 @@ func (d dotfilesItem) updater() Fn {
 	}
 }
 
-func (d dotfilesItem) isInstalled() BoolFn {
+func (d Dotfiles) isInstalled() BoolFn {
 	return func() (bool, error) {
 		return utils.PathExists(d.root), nil
 	}

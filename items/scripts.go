@@ -15,7 +15,7 @@ func scriptItems() (items []Item, err error) {
 	cfg := config.Get()
 
 	for name, val := range cfg.Scripts {
-		item := scriptItem{
+		item := Script{
 			name:              name,
 			priority:          val.Priority,
 			checkCode:         val.Check,
@@ -32,7 +32,7 @@ func scriptItems() (items []Item, err error) {
 
 // Script item
 
-type scriptItem struct {
+type Script struct {
 	name              string
 	priority          int
 	checkCode         string // Defaults to IsInstalled
@@ -43,19 +43,19 @@ type scriptItem struct {
 	updateWithInstall bool
 }
 
-func (i scriptItem) Name() string {
+func (i Script) Name() string {
 	return i.name
 }
 
-func (i scriptItem) Priority() int {
+func (i Script) Priority() int {
 	return i.priority
 }
 
-func (i scriptItem) Type() ItemType {
+func (i Script) Type() ItemType {
 	return ScriptItem
 }
 
-func (i scriptItem) Handlers() ItemHandlers {
+func (i Script) Handlers() ItemHandlers {
 	h := ItemHandlers{
 		IsInstalled: i.isInstalled(),
 		Check:       i.checker(),
@@ -74,7 +74,7 @@ func (i scriptItem) Handlers() ItemHandlers {
 // The checks are:
 //  1. Check if the script has isInstalledCode
 //  2. Run the checkCode or, if empty, the isInstalledCode
-func (i scriptItem) checker() Fn {
+func (i Script) checker() Fn {
 	var code string
 	if i.checkCode != "" {
 		code = i.checkCode
@@ -103,7 +103,7 @@ func (i scriptItem) checker() Fn {
 
 // isInstalled returns a function which will execute
 // the isInstalledCode.
-func (i scriptItem) isInstalled() BoolFn {
+func (i Script) isInstalled() BoolFn {
 	if i.isInstalledCode != "" {
 		return nil
 	}
@@ -113,7 +113,7 @@ func (i scriptItem) isInstalled() BoolFn {
 	}
 }
 
-func (i scriptItem) installer() func() error {
+func (i Script) installer() func() error {
 	if i.installCode == "" {
 		return nil
 	}
@@ -122,7 +122,7 @@ func (i scriptItem) installer() func() error {
 	}
 }
 
-func (i scriptItem) uninstaller() func() error {
+func (i Script) uninstaller() func() error {
 	if i.uninstallCode == "" {
 		return nil
 	}
@@ -131,7 +131,7 @@ func (i scriptItem) uninstaller() func() error {
 	}
 }
 
-func (i scriptItem) updater() func() error {
+func (i Script) updater() func() error {
 	if i.updateCode == "" {
 		return nil
 	}
@@ -140,6 +140,6 @@ func (i scriptItem) updater() func() error {
 	}
 }
 
-func (i scriptItem) String() string {
+func (i Script) String() string {
 	return i.name
 }

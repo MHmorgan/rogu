@@ -18,15 +18,15 @@ func fileItems() (items []Item, err error) {
 	cfg := config.Get()
 
 	for name, val := range cfg.Files {
-		item := fileItem{
+		item := File{
 			name:     name,
 			priority: val.Priority,
-			url:      val.Source,
-			dst:      val.Destination,
+			url:      val.Url,
+			dst:      val.Dst,
 			mode:     val.Mode,
 		}
 		if item.mode == 0 {
-			item.mode = 0644
+			item.mode = config.DefaultMode
 		}
 		items = append(items, item)
 	}
@@ -86,7 +86,7 @@ func fileInstaller(srcUrl, dst string, mode int) func() error {
 
 // File item
 
-type fileItem struct {
+type File struct {
 	name     string
 	priority int
 	url      string
@@ -94,23 +94,23 @@ type fileItem struct {
 	mode     int
 }
 
-func (f fileItem) String() string {
+func (f File) String() string {
 	return f.name
 }
 
-func (f fileItem) Name() string {
+func (f File) Name() string {
 	return f.name
 }
 
-func (f fileItem) Priority() int {
+func (f File) Priority() int {
 	return f.priority
 }
 
-func (f fileItem) Type() ItemType {
+func (f File) Type() ItemType {
 	return FileItem
 }
 
-func (f fileItem) Handlers() ItemHandlers {
+func (f File) Handlers() ItemHandlers {
 	h := ItemHandlers{
 		Check:   fileChecker(f.name, f.url, f.dst),
 		Install: fileInstaller(f.url, f.dst, f.mode),

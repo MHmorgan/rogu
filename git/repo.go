@@ -7,6 +7,7 @@ import (
 	"github.com/mhmorgan/rogu/sh"
 	"github.com/mhmorgan/rogu/utils"
 	"os"
+	"path/filepath"
 	"strings"
 	"text/template"
 )
@@ -18,13 +19,13 @@ type Repo struct {
 }
 
 func Open(root string, options ...Option) (r Repo, err error) {
-	if !utils.PathExists(root) {
-		return r, fmt.Errorf("%s: %w", root, os.ErrNotExist)
-	}
 	r = Repo{
 		Root:   root,
 		Branch: "main",
 		cmd:    "git",
+	}
+	if !utils.PathExists(root) {
+		return r, ErrNotInstalled{r.Name()}
 	}
 	for _, option := range options {
 		option(&r)
@@ -39,12 +40,42 @@ func DotfilesRepo() (Repo, error) {
 	return Open(root, WithBranch(cfg.Dotfiles.Branch), WithCmd(cmd))
 }
 
+// InitTemplate initializes a new repository with the given
+// template in the current directory.
+func InitTemplate(tmplDir string) error {
+	if !utils.PathExists(tmplDir) {
+		return fmt.Errorf("template dir %s missing .git dir", tmplDir)
+	}
+	if err := sh.Runf("git init --template=%s/.git", tmplDir); err != nil {
+		return err
+	}
+	// Copy files from template.
+	paths, err := filepath.Glob(filepath.Join(tmplDir, "*"))
+	if err != nil {
+		return err
+	}
+	for _, path := range paths {
+		if filepath.Base(path) == ".git" {
+			continue
+		}
+		// This will not copy hidden files in subdirectories.
+		if err := sh.Runf("cp -r %s .", path); err != nil {
+			return err
+		}
+	}
+	return nil
+}
+
 func Clone(repo, root string) error {
 	return sh.Runf("git clone %s %s", repo, root)
 }
 
 func CloneBare(repo, root string) error {
 	return sh.Runf("git clone --bare %s %s", repo, root)
+}
+
+func (r Repo) Name() string {
+	return filepath.Base(r.Root)
 }
 
 // Files returns a list of files tracked by the repository.

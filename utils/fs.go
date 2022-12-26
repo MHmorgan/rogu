@@ -7,6 +7,10 @@ import (
 	"path/filepath"
 )
 
+// fs provides simplified functionality for the filesystem
+// which should reduce boilerplate code. Mainly for error
+// handling.
+
 // Home returns the home directory of the current user,
 // or calls log.Fatal if it cannot be determined.
 func Home() string {
@@ -36,6 +40,13 @@ func CdHome() {
 		log.Fatal(err)
 	}
 	if err := os.Chdir(home); err != nil {
+		log.Fatal(err)
+	}
+}
+
+// Cd changes to the given directory, or calls log.Fatal.
+func Cd(path string) {
+	if err := os.Chdir(path); err != nil {
 		log.Fatal(err)
 	}
 }

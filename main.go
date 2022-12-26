@@ -115,6 +115,7 @@ The commands are:
     boilerplate  download a boilerplate file
     doctor       diagnose your machine
     help         show this help
+    init         initialize a new git repository
     list	     list all dotfiles
     sync         install and update Rogu's items
 

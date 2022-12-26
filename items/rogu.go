@@ -6,25 +6,25 @@ import (
 
 const roguItemName = "Rogu"
 
-type roguItem struct{}
+type Rogu struct{}
 
-func (r roguItem) String() string {
+func (r Rogu) String() string {
 	return roguItemName
 }
 
-func (r roguItem) Name() string {
+func (r Rogu) Name() string {
 	return roguItemName
 }
 
-func (r roguItem) Priority() int {
+func (r Rogu) Priority() int {
 	return 666
 }
 
-func (r roguItem) Type() ItemType {
+func (r Rogu) Type() ItemType {
 	return RoguItem
 }
 
-func (r roguItem) Handlers() ItemHandlers {
+func (r Rogu) Handlers() ItemHandlers {
 	cfg := config.Get()
 	h := ItemHandlers{
 		Check:       fileChecker(roguItemName, cfg.RoguUrl(), cfg.Rogu.Path),

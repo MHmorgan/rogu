@@ -41,14 +41,14 @@ func doctor(args []string) {
 
 		h := item.Handlers()
 		if h.Check == nil {
-			log.Errorf("%s%v has no check", pri, item.Name())
+			log.Errorf("%s%v has no check", pri, item)
 			continue
 		}
 
 		if err := h.Check(); err != nil {
-			log.Badf("%s%v ... %v", pri, item.Name(), err)
+			log.Badf("%s%v ... %v", pri, item, err)
 		} else {
-			log.Goodf("%s%v ... OK", pri, item.Name())
+			log.Goodf("%s%v ... OK", pri, item)
 		}
 	}
 }
