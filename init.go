@@ -3,6 +3,7 @@ package main
 import (
 	"flag"
 	"fmt"
+	ui "github.com/manifoldco/promptui"
 	"github.com/mhmorgan/rogu/git"
 	"github.com/mhmorgan/rogu/items"
 	"github.com/mhmorgan/rogu/utils"
@@ -53,6 +54,7 @@ func init_(args []string) {
 		log.Fatal("already in a git repository")
 	}
 
+	// Get template directory
 	var tmplDir string
 	for _, itm := range itms {
 		tmpl := itm.(items.Template)
@@ -65,8 +67,42 @@ func init_(args []string) {
 		log.Fatalf("no template found for %q", args[0])
 	}
 
+	// Git init
 	if err := git.InitTemplate(tmplDir); err != nil {
 		log.Fatal(err)
+	}
+	repo, err := git.Open(".")
+	if err != nil {
+		log.Fatal(err)
+	}
+
+	// Set user.email
+	prompt := ui.Prompt{
+		Label: "Email",
+	}
+	if email, err := repo.Config("user.email"); err != nil {
+		log.Fatal(err)
+	} else if email != "" {
+		prompt.Label = fmt.Sprintf("Email (default: %s)", email)
+	}
+	if email, err := prompt.Run(); err != nil {
+		log.Fatal(err)
+	} else if email != "" {
+		_ = repo.SetConfig("user.email", email)
+	}
+
+	// Set user.name
+	if name, err := repo.Config("user.name"); err != nil {
+		log.Fatal(err)
+	} else if name == "" {
+		prompt := ui.Prompt{
+			Label: "Name",
+		}
+		if name, err := prompt.Run(); err != nil {
+			log.Fatal(err)
+		} else if name != "" {
+			_ = repo.SetConfig("user.name", name)
+		}
 	}
 }
 
