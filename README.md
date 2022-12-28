@@ -16,4 +16,5 @@ TODO
   See [endpoints](https://docs.github.com/en/rest/overview/endpoints-available-for-github-apps).
 
 * Use a single item for all templates.
+  Store templates as an array of URL's in the config.
 
