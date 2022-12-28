@@ -15,3 +15,5 @@ TODO
   for interract with github releases and assets.  
   See [endpoints](https://docs.github.com/en/rest/overview/endpoints-available-for-github-apps).
 
+* Use a single item for all templates.
+
