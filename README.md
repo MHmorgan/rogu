@@ -18,3 +18,5 @@ TODO
 * Use a single item for all templates.
   Store templates as an array of URL's in the config.
 
+* Rewrite cli with cobra
+
