@@ -20,3 +20,5 @@ TODO
 
 * Rewrite cli with cobra
 
+* Write installation script
+
