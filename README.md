@@ -22,3 +22,7 @@ TODO
 
 * Write installation script
 
+* Make default behoviour, when calling Rogu without arguments,
+  to perform the doctor functionality.
+  Maybe something other than doctor as well? Fix stuff?
+
