@@ -26,3 +26,12 @@ TODO
   to perform the doctor functionality.
   Maybe something other than doctor as well? Fix stuff?
 
+* Make Rogu able to bootstrap itself on a unix system with nothing installed.
+	1. Need to install essentials without the config file:
+		- zsh
+		- git
+		- dotfiles
+	2. Must handle different package managers?
+	3. Things to install on a fresh system:
+		- Vundle
+
