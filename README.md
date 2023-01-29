@@ -22,7 +22,7 @@ TODO
 
 * Write installation script
 
-* Make default behoviour, when calling Rogu without arguments,
+* Make default behaviour, when calling Rogu without arguments,
   to perform the doctor functionality.
   Maybe something other than doctor as well? Fix stuff?
 
@@ -34,4 +34,6 @@ TODO
 	2. Must handle different package managers?
 	3. Things to install on a fresh system:
 		- Vundle
+
+* Improve performance of `rogu doctor` - concurrent execution of checks?
 
