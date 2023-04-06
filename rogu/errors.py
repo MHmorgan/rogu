@@ -12,6 +12,15 @@ class AppError(Exception):
     pass
 
 
+class ResourceNotFound(AppError):
+    """Resource not found errors."""
+
+    def __init__(self, uri, path):
+        self.uri = uri
+        self.path = path
+        super().__init__(f'No resource found for uri={uri} and path={path}')
+
+
 class DslError(AppError):
     """DSL execution errors."""
     pass
