@@ -5,8 +5,9 @@ from dataclasses import dataclass
 from functools import wraps
 
 import click
-import log
 import requests
+
+import log
 from errors import AppError, UgorError
 
 __all__ = ['auth', 'get', 'put', 'delete', 'find', 'info', 'UgorFile']
@@ -43,11 +44,8 @@ def get(name, etag=None, modified=None):
     if etag:
         headers['If-None-Match'] = etag
     if modified:
-        if not isinstance(modified, str):
-            try:
-                modified = modified.isoformat()
-            except AttributeError:
-                raise TypeError('modified must be a string or an object with an isoformat() method')
+        if hasattr(modified, 'isoformat'):
+            modified = modified.isoformat()
         headers['If-Modified-Since'] = modified
 
     url = _url(name)
@@ -93,7 +91,10 @@ def put(o, name='', use_pickle=False, force=False, **metadata):
 
     The metadata will be passed along to the UgorFile constructor.
 
-    Returns the UgorFile that was uploaded, with new ETag and Last-Modified values.
+    Returns a tuple (file, created), where file is the UgorFile that was uploaded,
+    with new ETag and Last-Modified values, and created is True if the file was
+    created, False if it was updated.
+
     Raises UgorError412 if any of the preconditions fails.
     Raises FileNotFoundError if o is a file path that doesn't exist.
     """
@@ -143,10 +144,10 @@ def put(o, name='', use_pickle=False, force=False, **metadata):
             raise ValueError('name must be given if o has no name')
 
     headers = file.headers()
-    if file.etag and not force:
-        headers['If-Match'] = file.etag
-    if file.modified and not force:
-        headers['If-Unmodified-Since'] = file.modified
+    if file.last_etag and not force:
+        headers['If-Match'] = file.last_etag
+    if file.last_modified and not force:
+        headers['If-Unmodified-Since'] = file.last_modified
 
     url = _url(file.name)
     log.debug('PUT', url, *[f"{k}: {v!r}" for k, v in headers.items()])
@@ -154,11 +155,11 @@ def put(o, name='', use_pickle=False, force=False, **metadata):
     r.raise_for_status()
 
     try:
-        file.etag = r.headers['ETag']
-        file.modified = r.headers['Last-Modified']
+        file.last_etag = r.headers['ETag']
+        file.last_modified = r.headers['Last-Modified']
     except KeyError as e:
         raise AppError(f'Ugor server did not return ETag and/or Last-Modified headers') from e
-    return file
+    return file, r.status_code == 201
 
 
 @_ugor_error
@@ -167,6 +168,15 @@ def delete(name, force=False, etag=None, modified=None):  # TODO
     headers = {}
     if etag and not force:
         headers['If-Match'] = etag
+    if modified and not force:
+        if hasattr(modified, 'isoformat'):
+            modified = modified.isoformat()
+        headers['If-Unmodified-Since'] = modified
+
+    url = _url(name)
+    log.debug('DELETE', url, *[f"{k}: {v!r}" for k, v in headers.items()])
+    r = requests.delete(url, auth=auth(), headers=headers)
+    r.raise_for_status()
 
 
 @_ugor_error
@@ -174,8 +184,9 @@ def find(**params):  # TODO
     """Find files on the Ugor server with the given search parameters"""
     from config import ugor_url
 
-    log.debug('FIND', ugor_url)
-    r = requests.request('FIND', ugor_url, auth=auth())
+    params = {k: v for k, v in params.items() if v is not None}
+    log.debug('FIND', ugor_url, params)
+    r = requests.request('FIND', ugor_url, auth=auth(), json=params)
     r.raise_for_status()
     return r.json()
 
@@ -203,9 +214,9 @@ class UgorFile:
     mime_type: str = None
     encoding: str = None
 
-    # The ETag and Last-Modified headers are set by the server
-    etag: str = None
-    modified: str = None
+    # The ETag and Last-Modified headers set by the server
+    last_etag: str = None
+    last_modified: str = None
 
     # Metadata
     description: str = None
@@ -236,8 +247,8 @@ class UgorFile:
             self.encoding = self.encoding or encoding
 
         # Convert datetime/Arrow objects to ISO strings
-        if self.modified and hasattr(self.modified, 'isoformat'):
-            self.modified = self.modified.isoformat()
+        if self.last_modified and hasattr(self.last_modified, 'isoformat'):
+            self.last_modified = self.last_modified.isoformat()
 
     @classmethod
     def of(cls, name, content, **metadata):
@@ -262,8 +273,8 @@ class UgorFile:
             return cls(
                 name=name,
                 content=response.content,
-                etag=response.headers['ETag'],
-                modified=response.headers['Last-Modified'],
+                last_etag=response.headers['ETag'],
+                last_modified=response.headers['Last-Modified'],
                 mime_type=response.headers['Content-Type'],
                 encoding=response.headers.get('Content-Encoding'),
                 description=response.headers.get('File-Description'),
@@ -345,6 +356,6 @@ def auth(user=None, pwd=None):
 
 def _url(name):
     """Get the URL for the given file name"""
+    from urllib.parse import urljoin
     from config import ugor_url
-    base = ugor_url.rstrip('/')
-    return f'{base}/{name}'
+    return urljoin(ugor_url, name)
