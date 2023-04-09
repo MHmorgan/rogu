@@ -8,7 +8,9 @@ from pathlib import Path
 from urllib.parse import urlparse
 
 import log
+import ugor
 from errors import AppError, UgorError404
+from result import Ok, Fail
 
 
 # TODO __all__
@@ -75,7 +77,9 @@ class Resource:
         return f'{self.class_name}:{self.short_key}'
 
     def __repr__(self):
-        return f'<{self.class_name} path={self.short_path} uri={self.uri}>'
+        uri = self.uri
+        path = self.short_path
+        return f'<{self.class_name} {path=!r} {uri=!r}>'
 
     @property
     def short_path(self):
@@ -222,7 +226,7 @@ class File(Resource):
     def install(self, mode=None, force=False, **kwargs):
         """Install the file to its path from the uri.
 
-        Returns a tuple of (ok, message).
+        :return: a ``Result``.
         """
         parsed = urlparse(self.uri)
 
@@ -239,12 +243,10 @@ class File(Resource):
             else:
                 raise AppError(f'Unknown File URI scheme: {self.uri!r}')
         except UgorError404:
-            msg = f'Not installed: Ugor file {self.uri!r} not found.'
-            return False, msg
+            return Fail(f'not installed: Ugor file {self.uri!r} not found')
 
         if content is None:
-            msg = f'Not installed: {self.short_path} is already up-to-date.'
-            return False, msg
+            return Fail(f'not installed: {self.short_path} is already up-to-date')
 
         if not self.path.parent.exists():
             self.path.parent.mkdir(parents=True)
@@ -252,14 +254,13 @@ class File(Resource):
         if mode:
             self.path.chmod(mode)
 
-        return True, f'Installed {self.short_path}'
+        return Ok(f'installed {self.short_path}')
 
     def _from_ugor(self, force):
         """Get the file content from Ugor.
 
         Updates the etag and modified properties with values from Ugor.
         """
-        import ugor
 
         file = ugor.get(
             self.uri,
@@ -297,7 +298,7 @@ class File(Resource):
             return None
         return r.content
 
-    def _from_file(self):  # TODO
+    def _from_file(self):
         """Get the file content from a local file.
 
         Updates the etag and modified properties with values from the file.
@@ -320,7 +321,6 @@ class File(Resource):
 
     def upload(self, force=False, **kwargs):
         """Upload the file to Ugor."""
-        import ugor
 
         if force:
             log.debug(f'Forcing upload.')
@@ -328,8 +328,7 @@ class File(Resource):
         if urlparse(self.uri).scheme != '':
             raise AppError(f'Ugor files must have a relative path URI, not: {self.uri}')
         if not self.path.exists():
-            msg = f'Not uploaded: {self.short_path} does not exist.'
-            return False, msg
+            return Fail(f'not uploaded: {self.short_path} does not exist')
 
         file, created = ugor.put(
             self.path.read_bytes(),
@@ -343,7 +342,7 @@ class File(Resource):
         self.last_etag = file.last_etag
         self.last_modified = file.last_modified
         action = 'new' if created else 'existing'
-        return True, f'Uploaded {action} {self.short_path}'
+        return Ok(f'uploaded {action} {self.short_path}')
 
 
 # ------------------------------------------------------------------------------

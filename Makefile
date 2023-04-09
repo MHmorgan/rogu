@@ -1,6 +1,8 @@
 
 APP=rogu
 
+all: test
+
 lint:
 	pylint rogu | tee lint.log
 
@@ -10,3 +12,8 @@ update:
 
 build:
 	python3 -m zipapp --output out/$(APP) --python "/usr/bin/env python3 -OO" --compress $(APP)
+
+test:
+	./test ugor install upload
+
+.PHONY: all lint update build test

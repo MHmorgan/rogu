@@ -18,6 +18,7 @@ from resources import (
     Resource,
     is_archive
 )
+from result import Result, Ok, Fail
 
 
 # TODO __all__
@@ -52,7 +53,7 @@ def refresh_resource(f):
 def recording(f):
     """Decorator to add resource history recording to a function.
 
-    Recording functions must return a tuple (ok, msg).
+    Recording functions must return a ``Result``.
     """
     import history
     from functools import wraps
@@ -60,9 +61,10 @@ def recording(f):
     @wraps(f)
     def wrapper(*args, **kwargs):
         assert isinstance(args[0], Resource)
-        ok, msg = f(*args, **kwargs)
-        history.record(f.__name__, args[0], ok, msg)
-        return ok, msg
+        res = f(*args, **kwargs)
+        assert isinstance(res, Result)
+        history.record(f.__name__, args[0], res.success, res.message)
+        return res
 
     return wrapper
 
@@ -142,7 +144,7 @@ def fetch(path, uri, **kwargs):
 @need_resource
 @refresh_resource
 @recording
-def update(resource, **kwargs):  # TODO
+def update(resource):
     """Update a resource.
 
     This may include installing updates, uploading new versions,
@@ -150,24 +152,26 @@ def update(resource, **kwargs):  # TODO
 
     :param resource: a ``Resource`` instance
     :keyword force: force update even if the resource has local changes
-    :return: a tuple (ok, msg). ``ok=True`` means the resource was updated.
+    :return: a ``Result`` instance
     """
-    log.info(f'Updating {resource}...')
+    log.debug(f'Updating {resource} of category 0b{resource.category:b}')
 
     if is_ignored(resource):
-        return False, f'Not updated: {resource.class_name} is ignored'
+        return Fail(f'not updated: {resource.class_name} is ignored')
 
     if hasattr(resource, 'update'):
-        return resource.update(**kwargs)
+        return resource.update()
 
     if is_synced(resource):
-        return sync(resource, **kwargs)
+        return sync(resource)
     elif is_installed(resource):
-        return install(resource, **kwargs)
+        return install(resource)
     elif is_uploaded(resource):
-        return upload(resource, **kwargs)
+        return upload(resource)
 
-    raise AppError(f"don't know how to update {resource}")
+    uri = resource.uri
+    path = resource.path
+    raise AppError(f"don't know how to update {resource} {path=!r} {uri=!r}")
 
 
 @need_resource
@@ -182,21 +186,20 @@ def install(resource, **kwargs):
 
     :param resource: a ``Resource`` instance
     :keyword force: force installation even if the resource has local changes
-    :return: a tuple (ok, msg). ``ok=True`` means the resource was installed.
+    :return: a ``Result`` instance
     """
-    log.info(f'Installing {resource}...')
-
-    # Don't install if the resource has local changes
-    force = kwargs.get('force', False)
-    if is_modified(resource, action='install') and not force:
-        return False, 'Not installed: The resource has local changes.'
+    log.debug(f'Installing {resource!r}')
 
     # The resource must be installable
     if not hasattr(resource, 'install'):
         msg = f'cannot install {resource}: install() not implemented.'
         raise AppError(msg)
 
-    log.debug(f'Installing {resource} from {resource.uri!r}')
+    # Don't install if the resource has local changes
+    force = kwargs.get('force', False)
+    if is_modified(resource, ['install']) and not force:
+        return Fail('not installed: resource has local changes')
+
     resource.category |= Resource.INSTALL
     return resource.install(**kwargs)
 
@@ -209,21 +212,20 @@ def upload(resource, **kwargs):
 
     :param resource: a ``Resource`` instance
     :keyword force: force upload even if the resource has no local changes
-    :return: a tuple (ok, msg). ``ok=True`` means the resource was uploaded.
+    :return: a ``Result`` instance
     """
-    log.info(f'Uploading {resource}...')
-
-    # Don't upload if the resource has no local changes
-    force = kwargs.get('force', False)
-    if not is_modified(resource, action='upload') and not force:
-        return False, 'Not uploaded: The resource has no local changes.'
+    log.debug(f'Uploading {resource!r}')
 
     # The resource must be uploadable
     if not hasattr(resource, 'upload'):
         msg = f'cannot upload {resource}: upload() not implemented'
         raise AppError(msg)
 
-    log.debug(f'Uploading {resource} to {resource.uri!r}')
+    # Don't upload if the resource has no local changes
+    force = kwargs.get('force', False)
+    if not is_modified(resource, ['upload']) and not force:
+        return Fail('not uploaded: resource has no local changes')
+
     resource.category |= Resource.UPLOAD
     return resource.upload(**kwargs)
 
@@ -231,35 +233,39 @@ def upload(resource, **kwargs):
 @need_resource
 @refresh_resource
 @recording
-def sync(resource, **kwargs):  # TODO
+def sync(resource, **kwargs):
     """Synchronise a resource. Sync is like a combination of install
     and upload.
 
     :param resource: a ``Resource`` instance
-    :return: a tuple (ok, msg). ``ok=True`` means the resource was synced.
+    :return: a ``Result`` instance
     """
-    log.info(f'Synchronising {resource}...')
+    log.debug(f'Synchronising {resource!r}')
 
     # The resource must be installable and uploadable
     if not (hasattr(resource, 'install') and hasattr(resource, 'upload')):
-        raise AppError(f'cannot sync {resource}: install() or upload() not implemented')
+        msg = f'cannot sync {resource}: install() or upload() not implemented'
+        return Fail(msg)
 
-    log.debug(f'Synchronising {resource} with {resource.uri!r}')
     resource.category |= Resource.SYNC
 
     # Try to upload first
-    ok, msg = upload(resource, **kwargs)
-    log.info(msg)
-    if ok:
-        return True, f'Synced by upload.'
+    if is_modified(resource, ('sync', 'upload')):
+        res = resource.upload(**kwargs)
+        if res.ok:
+            return res('Synced by upload')
+    else:
+        res = Fail('not uploaded: no local changes')
 
     # If upload failed, try to install
-    ok, msg = install(resource, **kwargs)
-    log.info(msg)
-    if ok:
-        return True, f'Synced by install.'
+    if not is_modified(resource, ('sync', 'install')):
+        res += resource.install(**kwargs)
+        if res.ok:
+            return res('synced by install')
+    else:
+        res += 'not installed: has local changes'
 
-    return False, f'Not synced.'
+    return res('not synced')
 
 
 @need_resource
@@ -269,7 +275,7 @@ def move(resource, path):
 
     :param resource: a ``Resource`` instance
     :param path: the new local path
-    :return: a tuple (ok, msg). ``ok=True`` means the resource was moved.
+    :return: a ``Result`` instance
     """
     import cache
     import resources
@@ -282,11 +288,12 @@ def move(resource, path):
     # Check if a resource with the same path and uri already exists
     # XXX Could this be automatically handled?
     if new_key in cache.resources:
-        return False, f'Not moved: Target resource already exists: {new_key}'
+        msg = f'not moved: target resource already exists: {new_key}'
+        return Fail(msg)
 
     path = shutil.move(str(resource.path), path)
     resource.path = Path(resources.normalize_path(path))
-    return True, f'Moved {old_path} to {resource.short_path}'
+    return Ok(f'moved {old_path} to {resource.short_path}')
 
 
 @need_resource
@@ -303,7 +310,7 @@ def delete(resource, local=False, remote=True, force=False):
     import cache
     import shutil
 
-    msg = f'Removed {resource.uri} from '
+    res = Ok()
 
     # Remove ugor file from server
     if is_ugor(resource) and remote:
@@ -315,7 +322,7 @@ def delete(resource, local=False, remote=True, force=False):
             modified=modified,
             force=force,
         )
-        msg += 'Ugor; '
+        res += 'deleted Ugor file'
 
     # Delete local copy
     if local:
@@ -324,10 +331,12 @@ def delete(resource, local=False, remote=True, force=False):
                 shutil.rmtree(resource.path, ignore_errors=True)
             else:
                 os.remove(resource.path)
-            msg += 'local disk; '
+            res += 'deleted local copy'
+        else:
+            res += 'no local copy to delete'
 
     del cache.resources[resource]
-    return True, msg + 'cache.'
+    return res('deleted from cache')
 
 
 # ------------------------------------------------------------------------------
@@ -378,7 +387,7 @@ def is_repo(resource):
 
 
 @need_resource
-def is_modified(resource, action=None):
+def is_modified(resource, actions=None):
     """Check if a resource has local changes since last recorded history.
 
     If there are history entries for the resource, but the resource path
@@ -392,7 +401,7 @@ def is_modified(resource, action=None):
         latest = next(
             entry
             for entry in history.resource_entries(resource)
-            if not action or entry.action == action
+            if not actions or entry.action in actions
         )
     except StopIteration:
         return exists(resource)

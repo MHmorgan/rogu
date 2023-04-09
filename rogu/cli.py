@@ -24,8 +24,8 @@ def cli():
 
 
 @cli.command()
-@click.argument('uri')
 @click.argument('path')
+@click.argument('uri')
 @click.option('-f', '--force', is_flag=True, help='Overwrite existing files.')
 @click.option('--type', type=click.Choice(Resource.subclasses.keys()), help='Force resource type.')
 @click.option('--etag', help='ETag precondition.')
@@ -44,16 +44,17 @@ def get(path, uri, force, **kwargs):
     if not resource.category:
         resource.category |= Resource.IGNORE
 
-    ok, msg = rdsl.install(resource, force=force)
-    if msg:
-        log.info(msg)
-    if ok:
-        rdsl.store(resource)
+    res = rdsl.install(resource, force=force)
+    txt = format(res, '    ')
+    if not res:
+        log.bad(txt)
+        sys.exit(1)
+    log.good(txt)
 
 
 @cli.command()
-@click.argument('uri')
 @click.argument('path')
+@click.argument('uri')
 @click.option('-f', '--force', is_flag=True, help='Overwrite existing files.')
 def install(path, uri, force):
     """Install a resource. The resource is fetched from URI and written to PATH.
@@ -62,14 +63,17 @@ def install(path, uri, force):
 
     Installed resources are kept up-to-date with update.
     """
+    import cache
     import rdsl
 
     resource = rdsl.fetch(path=path, uri=uri)
-    ok, msg = rdsl.install(resource, force=force)
-    if msg:
-        log.info(msg)
-    if ok:
-        rdsl.store(resource)
+    res = rdsl.install(resource, force=force)
+    txt = format(res, '    ')
+    if not res:
+        log.bad(txt)
+        sys.exit(1)
+    log.good(txt)
+    cache.resources[resource] = resource
 
 
 @cli.command()
@@ -83,14 +87,17 @@ def upload(path, uri, force):
 
     Uploaded resources are kept up-to-date with update.
     """
+    import cache
     import rdsl
 
     resource = rdsl.fetch(path=path, uri=uri)
-    ok, msg = rdsl.upload(resource, force=force)
-    if msg:
-        log.info(msg)
-    if ok:
-        rdsl.store(resource)
+    res = rdsl.upload(resource, force=force)
+    txt = format(res, '    ')
+    if not res:
+        log.bad(txt)
+        sys.exit(1)
+    log.good(txt)
+    cache.resources[resource] = resource
 
 
 @cli.command()
@@ -104,22 +111,24 @@ def sync(path, uri):
 
     Synchronised resources are kept up-to-date with update.
     """
+    import cache
     import rdsl
 
     resource = rdsl.fetch(path=path, uri=uri)
-    ok, msg = rdsl.sync(resource)
-    if msg:
-        log.info(msg)
-    if ok:
-        rdsl.store(resource)
+    res = rdsl.sync(resource)
+    txt = format(res, '    ')
+    if not res:
+        log.bad(txt)
+        sys.exit(1)
+    log.good(txt)
+    cache.resources[resource] = resource
 
 
 @cli.command()
 @click.option('-r', '--resource', 'key', help='Key of a resource to update.')
 @click.option('-p', '--path', help='Path of a resource to update.')
 @click.option('-u', '--uri', help='Name of a resource to update.')
-@click.option('-f', '--force', is_flag=True, help='Overwrite existing files.')
-def update(key, path, uri, force):  # TODO
+def update(key, path, uri):
     """Update resources.
 
     If no resource is specified, all resources are updated.
@@ -142,18 +151,17 @@ def update(key, path, uri, force):  # TODO
     else:
         rs = cache.resources.values()
 
-    kwargs = {}
-    if force:
-        kwargs['force'] = True
-
     for resource in rs:
         try:
-            ok, msg = rdsl.update(resource, **kwargs)
+            res = rdsl.update(resource)
         except AppError as e:
             log.error(e)
         else:
-            log.info(msg)
-            if ok:
+            txt = format(res, '    ')
+            if not res:
+                log.bad(txt)
+            else:
+                log.good(txt)
                 cache.resources[resource] = resource
 
 
@@ -181,13 +189,17 @@ def rm(key, local, force, no_remote):
     except ValueError:
         bail('Resource not found')
 
-    ok, msg = rdsl.delete(
+    res = rdsl.delete(
         cache.resources[key],
         local=local,
         remote=not no_remote,
         force=force,
     )
-    log.info(msg)
+    txt = format(res, '    ')
+    if not res:
+        log.bad(txt)
+        sys.exit(1)
+    log.good(txt)
 
 
 @cli.command()
@@ -208,8 +220,12 @@ def mv(key, path):
         bail('Resource not found')
 
     r = cache.resources[key]
-    ok, msg = rdsl.move(r, path)
-    log.info(msg)
+    res = rdsl.move(r, path)
+    txt = format(res, '    ')
+    if not res:
+        log.bad(txt)
+        sys.exit(1)
+    log.good(txt)
 
     del cache.resources[key]
     cache.resources[r] = r
@@ -262,6 +278,8 @@ def resources(key):
 def history(n):
     """Show the resource action history."""
     import history
+    import shutil
+    import textwrap
 
     entries = [
         entry
@@ -282,15 +300,24 @@ def history(n):
         max(len(e.path) for e in entries),
     ]
 
+    # Calculate left-over width for message column.
+    w, _ = shutil.get_terminal_size()
+    msg_width = w - sum(widths) - 2 * len(widths)
+
     echo_row(headers, widths)
     for entry in entries:
         color = green if entry.ok else red
+        msg = textwrap.shorten(
+            entry.message,
+            msg_width,
+            break_long_words=True,
+        )
         cols = [
             entry.timestamp.format(fmt),
             entry.action,
             entry.name,
             entry.path,
-            color(entry.message),
+            color(msg),
         ]
         echo_row(cols, widths)
 
@@ -334,9 +361,10 @@ def ugor_get(name):
 
     try:
         file = ugor.get(name)
-        echo_ugor_file(file)
     except errors.UgorError404:
         bail('File not found')
+    else:
+        echo_ugor_file(file)
 
 
 @ugor.command('put')
@@ -345,10 +373,10 @@ def ugor_get(name):
     dir_okay=False,
     readable=True,
 ))
-@click.option('--name', help='Name of the file on the Ugor server.')
+@click.argument('name')
 @click.option('-f', '--force', is_flag=True, help='Ignore failing preconditions.')
-@click.option('--etag', help='ETag precondition.')
-@click.option('--modified', help='Modified precondition.')
+@click.option('--etag', 'last_etag', help='ETag precondition.')
+@click.option('--modified', 'last_modified', help='Modified precondition.')
 @click.option('--mime-type', help='MIME type of the file.')
 @click.option('--encoding', help='Encoding of the file.')
 @click.option('--description', help='Description of the file.')
@@ -368,14 +396,14 @@ def ugor_put(file, name, **metadata):
     """
     import ugor
     import errors
+    from pathlib import Path
 
     try:
-        file, created = ugor.put(file, name, **metadata)
+        file, created = ugor.put(Path(file), name, **metadata)
     except errors.UgorError412:
         bail('Precondition failed')
     else:
-        echo('Created file.' if created else 'Updated file.')
-        echo_ugor_file(file, include=['name', 'etag', 'modified'])
+        log.info(f'Created {name}' if created else f'Updated {name}')
 
 
 @ugor.command('delete')
@@ -392,6 +420,8 @@ def ugor_delete(name, force, etag, modified):
         ugor.delete(name, force, etag, modified)
     except errors.UgorError412:
         bail('Precondition failed')
+    else:
+        log.info(f'Deleted {name}')
 
 
 @ugor.command('find')
@@ -451,11 +481,15 @@ def doctor():
     import config
     import history
     import os
+    import shutil
 
     w = 25
 
     echo(f'{bold("Version"):>{w}} {config.version}')
     echo(f'{bold("Python"):>{w}} {sys.version}')
+
+    # Statistics
+    echo()
 
     # Files
     echo()
@@ -511,8 +545,8 @@ def echo_ugor_file(file, exclude=None, include=None):
         'content',
         'mime_type',
         'encoding',
-        'etag',
-        'modified',
+        'last_etag',
+        'last_modified',
         'description',
         'tag',
         'tag2',
