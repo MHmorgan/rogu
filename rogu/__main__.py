@@ -13,7 +13,7 @@ import sys
 if sys.version_info < (3, 8):
     sys.exit("Python 3.8 or higher is required.")
 
-# Add thirdparty to sys.path
+# Add location of third party libraries to sys.path
 sys.path.insert(1, f'{sys.path[0]}/thirdparty')
 
 import cli

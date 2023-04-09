@@ -49,7 +49,7 @@ def get(name, etag=None, modified=None):
         headers['If-Modified-Since'] = modified
 
     url = _url(name)
-    log.debug('GET', url, *[f"{k}: '{v}'" for k, v in headers.items()])
+    log.debug(f'GET {url!r}', *[f"{k}: {v!r}" for k, v in headers.items()])
 
     r = requests.get(url, auth=auth(), headers=headers)
     r.raise_for_status()
@@ -339,19 +339,19 @@ def auth(user=None, pwd=None):
     If user and/or pwd are given, it sets the credentials.
     If user/pwd are None and doesn't exist in the cache, it will prompt the user.
     """
-    from cache import cache
+    import cache
 
     if user:
-        cache['ugor_user'] = user
+        cache.primary['ugor_user'] = user
     if pwd:
-        cache['ugor_pwd'] = pwd
+        cache.primary['ugor_pwd'] = pwd
 
-    if 'ugor_user' not in cache:
-        cache['ugor_user'] = click.prompt('Ugor user', type=str)
-    if 'ugor_pwd' not in cache:
-        cache['ugor_pwd'] = click.prompt('Ugor pwd', type=str, hide_input=True)
+    if 'ugor_user' not in cache.primary:
+        cache.primary['ugor_user'] = click.prompt('Ugor user', type=str)
+    if 'ugor_pwd' not in cache.primary:
+        cache.primary['ugor_pwd'] = click.prompt('Ugor pwd', type=str, hide_input=True)
 
-    return cache['ugor_user'], cache['ugor_pwd']
+    return cache.primary['ugor_user'], cache.primary['ugor_pwd']
 
 
 def _url(name):

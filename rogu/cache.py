@@ -1,5 +1,6 @@
-"""
-cache provides the cache functionality for Rogu.
+"""cache provides the cache functionality for Rogu.
+
+cache has import side effects, and should only be imported locally.
 """
 import atexit
 import pickle
@@ -8,10 +9,20 @@ from pathlib import Path
 
 import config
 
-__all__ = ['cache']
+__all__ = ['primary', 'resources']
 
-_cache_file = Path(config.app_dir) / 'cache.yaml'
 
-cache = shelve.open(str(_cache_file), protocol=pickle.HIGHEST_PROTOCOL)
+def _open(path):
+    return shelve.open(
+        str(path),
+        protocol=pickle.HIGHEST_PROTOCOL
+    )
 
-atexit.register(cache.close)
+
+primary_file = Path(config.app_dir) / 'rogu-cache'
+primary = _open(primary_file)
+atexit.register(primary.close)
+
+resources_file = Path(config.app_dir) / 'rogu-resource-cache'
+resources = _open(resources_file)
+atexit.register(resources.close)

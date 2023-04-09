@@ -1,7 +1,11 @@
-"""
-config provides the global configuration for the rogu app.
+"""config provides the global configuration for the rogu app.
+
+config has import side effects, and should only be imported locally.
 """
 
+import atexit
+import shutil
+import tempfile
 from os import environ
 from pathlib import Path
 
@@ -10,15 +14,22 @@ import yaml
 
 __all__ = [
     'version',
-    'config_keys',
-    'environment_variables',
     'set_',
     'reset',
+
+    'ugor_url',
+    'app_dir',
+    'bin_dir',
+    'git_branch',
+    'git_remote',
+    'git_user',
+    'git_name',
+    'git_email',
 ]
 
 version = '0.1'
 
-_defaults = {
+defaults = {
     'ugor_url': 'https://ugor.hirth.dev',
     'app_dir': click.get_app_dir('rogu', force_posix=True),
     'bin_dir': str(Path.home() / 'bin'),
@@ -30,45 +41,49 @@ _defaults = {
     'git_email': None,
 }
 
-_env_vars = {
+env_vars = {
     key: f'ROGU_{key.upper()}'
-    for key in _defaults
+    for key in defaults
 }
 
-config_keys = list(_defaults.keys())
-environment_variables = list(_env_vars.values())
+# Temporary directory, unique for each run
+tmp_dir = Path(tempfile.mkdtemp(prefix='rogu-'))
 
-_config_file = Path(environ.get('ROGU_APP_DIR', _defaults['app_dir'])) / 'config.yaml'
+atexit.register(lambda: tmp_dir.exists() and shutil.rmtree(tmp_dir, ignore_errors=True))
 
+
+# ------------------------------------------------------------------------------
+# Config interface
 
 def _read_config():
-    if not _config_file.exists():
+    if not _file.exists():
         return {}
-    with _config_file.open() as f:
+    with _file.open() as f:
         return yaml.full_load(f)
 
 
-_conf = _read_config()
+_file = Path(environ.get('ROGU_APP_DIR', defaults['app_dir'])) / 'config.yaml'
+_config = _read_config()
 
 
 def __getattr__(name):
-    if name not in _defaults:
+    if name not in defaults:
         raise AttributeError(name)
-    if _env_vars[name] in environ:
-        return environ[_env_vars[name]]
-    if name in _conf:
-        return _conf[name]
-    return _defaults[name]
+    if env_vars[name] in environ:
+        return environ[env_vars[name]]
+    if name in _config:
+        return _config[name]
+    return defaults[name]
 
 
 def set_(key, value):
-    _conf[key] = value
-    with _config_file.open('w') as f:
-        yaml.dump(_conf, f)
+    _config[key] = value
+    with _file.open('w') as f:
+        yaml.dump(_config, f)
 
 
 def reset(key):
-    if key in _conf:
-        del _conf[key]
-    with _config_file.open('w') as f:
-        yaml.dump(_conf, f)
+    if key in _config:
+        del _config[key]
+    with _file.open('w') as f:
+        yaml.dump(_config, f)

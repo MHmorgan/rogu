@@ -1,5 +1,6 @@
-"""
-errors defines all custom exceptions used in this application.
+"""errors defines all custom exceptions used in this application.
+
+errors has no import side effects, and can be imported globally.
 """
 
 
