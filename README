@@ -1,4 +1,14 @@
-Run tests (these three are equivalent):
+Setup:
+
+	python3 -m venv venv
+	source venv/bin/activate
+	make update
+
+Build zipapp:
+
+	make build
+
+Run tests (the three are equivalent; requires setup):
 
 	./test all
 	make test
