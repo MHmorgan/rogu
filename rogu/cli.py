@@ -81,9 +81,9 @@ def install(path, uri, force):
 @click.argument('uri')
 @click.option('-f', '--force', is_flag=True, help='Overwrite existing files.')
 def upload(path, uri, force):
-    """Upload a resource from PATH to Ugor.
+    """Upload a resource.
 
-    URI must be a relative path or file name (an Ugor name).
+    To upload to Ugor, URI must be a relative path (an Ugor name).
 
     Uploaded resources are kept up-to-date with update.
     """

@@ -22,6 +22,14 @@ class ResourceNotFound(AppError):
         super().__init__(f'No resource found for uri={uri} and path={path}')
 
 
+class ActionBlocked(AppError):
+    """A resource action was blocked by a well understood condition."""
+
+    def __init__(self, message):
+        self.message = message
+        super().__init__(message)
+
+
 class DslError(AppError):
     """DSL execution errors."""
     pass

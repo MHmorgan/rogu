@@ -1,4 +1,6 @@
-"""result provides the Result type used for resource actions."""
+"""result provides the Result type used for resource actions.
+
+"""
 from functools import partial
 
 

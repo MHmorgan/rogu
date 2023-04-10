@@ -81,9 +81,6 @@ SCRATCH=$DIR/scratch
 alias run='venv/bin/python3 -OO rogu'
 alias test='venv/bin/python3 rogu'
 
-alias put01="venv/bin/python3 -OO rogu ugor put $LOCAL_01 $REMOTE_01"
-alias put02="venv/bin/python3 -OO rogu ugor put $LOCAL_02 $REMOTE_02"
-
 function dump_history_resources {
     bold "\nResources:"
     run resources
@@ -301,6 +298,23 @@ function upload {
     fail "Uploaded a different file with the same name unexpectedly"
     success
 
+    log "Force upload a different file"
+    test upload --force $LOCAL_02 $REMOTE_01 ||
+    fail "Failed to force upload a different file"
+    success
+
+    log "Get file and check content"
+    test get $SCRATCH $REMOTE_01 ||
+    fail "Failed to get file"
+    assert_equal $LOCAL_02 $SCRATCH
+    success
+
+    log "Upload first file w/modifications"
+    echo "Lorem ipsum..." > $LOCAL_01
+    test upload $LOCAL_01 $REMOTE_01 &&
+    fail "Uploaded modified first file unexpectedly"
+    success
+
     # TODO Local file
 }
 
@@ -325,6 +339,7 @@ if ! [[ -d venv ]]; then
     exit 1
 fi
 
+# Determine which tests to run
 if (( $# == 0 )); then
     COMMANDS=$(gum choose --no-limit \
         --header="Choose tests:" \
@@ -335,9 +350,11 @@ else
     COMMANDS=$@
 fi
 
+# Clean up after failed tests
 [[ -d $DIR ]] && teardown
 
 for CMD in ${=COMMANDS}; do
+    # Some sanity checks
     if ! [[ $(test resources) =~ "No resources" ]]; then
         test resources
         fail "There shouldn't be any resources yet"
@@ -348,6 +365,7 @@ for CMD in ${=COMMANDS}; do
     fi
     FAIL_DUMP=1
 
+    # Run the test
     setup
     header $(echo $CMD | tr '[:lower:]' '[:upper:]')
     $CMD

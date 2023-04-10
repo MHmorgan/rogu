@@ -10,7 +10,7 @@ import os
 from contextlib import AbstractContextManager
 
 import log
-from errors import AppError, ResourceNotFound
+from errors import *
 from resources import (
     Archive,
     File,
@@ -93,7 +93,7 @@ class chdir(AbstractContextManager):
 
 
 # ------------------------------------------------------------------------------
-# RESOURCE INTERACTION
+# RESOURCE ACTIONS
 
 def fetch(path, uri, **kwargs):
     """Fetch/create a resource.
@@ -195,13 +195,18 @@ def install(resource, **kwargs):
         msg = f'cannot install {resource}: install() not implemented.'
         raise AppError(msg)
 
-    # Don't install if the resource has local changes
     force = kwargs.get('force', False)
+
+    # Don't install if the resource has local changes
     if is_modified(resource, ['install']) and not force:
         return Fail('not installed: resource has local changes')
 
     resource.category |= Resource.INSTALL
-    return resource.install(**kwargs)
+    try:
+        resource.install(**kwargs)
+    except ActionBlocked as e:
+        return Fail(f'not installed: {e}')
+    return Ok(f'installed {resource:U}')
 
 
 @need_resource
@@ -221,13 +226,18 @@ def upload(resource, **kwargs):
         msg = f'cannot upload {resource}: upload() not implemented'
         raise AppError(msg)
 
-    # Don't upload if the resource has no local changes
     force = kwargs.get('force', False)
+
+    # Don't upload if the resource has no local changes
     if not is_modified(resource, ['upload']) and not force:
         return Fail('not uploaded: resource has no local changes')
 
     resource.category |= Resource.UPLOAD
-    return resource.upload(**kwargs)
+    try:
+        resource.upload(**kwargs)
+    except ActionBlocked as e:
+        return Fail(f'not uploaded: {e}')
+    return Ok(f'uploaded {resource:P}')
 
 
 @need_resource
@@ -249,19 +259,27 @@ def sync(resource, **kwargs):
 
     resource.category |= Resource.SYNC
 
+    res = Ok()
+
     # Try to upload first
     if is_modified(resource, ('sync', 'upload')):
-        res = resource.upload(**kwargs)
-        if res.ok:
-            return res('Synced by upload')
+        try:
+            resource.upload(**kwargs)
+        except ActionBlocked as e:
+            res += f'not uploaded: {e}'
+        else:
+            return res(f'synced by uploading {resource:P}')
     else:
-        res = Fail('not uploaded: no local changes')
+        res += 'not uploaded: no local changes'
 
     # If upload failed, try to install
     if not is_modified(resource, ('sync', 'install')):
-        res += resource.install(**kwargs)
-        if res.ok:
-            return res('synced by install')
+        try:
+            resource.install(**kwargs)
+        except ActionBlocked as e:
+            res += f'not installed: {e}'
+        else:
+            return res(f'synced by installing {resource:U}')
     else:
         res += 'not installed: has local changes'
 

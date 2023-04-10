@@ -9,8 +9,7 @@ from urllib.parse import urlparse
 
 import log
 import ugor
-from errors import AppError, UgorError404
-from result import Ok, Fail
+from errors import *
 
 
 # TODO __all__
@@ -73,14 +72,6 @@ class Resource:
             return self.path == other.path and self.uri == other.uri
         return False
 
-    def __str__(self):
-        return f'{self.class_name}:{self.short_key}'
-
-    def __repr__(self):
-        uri = self.uri
-        path = self.short_path
-        return f'<{self.class_name} {path=!r} {uri=!r}>'
-
     @property
     def short_path(self):
         """Path as a string with home converted to ~ """
@@ -110,7 +101,7 @@ class Resource:
     @property
     def short_key(self):
         """Short version of resource's cache key."""
-        return self.key[:8]
+        return self.key[:10]
 
     def encode(self, encoding='utf-8', **kwargs):
         """Encode the resources cache key into bytes.
@@ -121,6 +112,30 @@ class Resource:
         (note that the resource must also be hashable).
         """
         return self.key.encode(encoding=encoding)
+
+    # ------------------------------------------------------
+    # DISPLAY
+
+    def __str__(self):
+        return f'{self.class_name}:{self.short_key}'
+
+    def __repr__(self):
+        uri = self.uri
+        path = self.short_path
+        return f'<{self.class_name} {path=!r} {uri=!r}>'
+
+    def __format__(self, format_spec):
+        if format_spec == 'U':
+            return self.uri
+        if format_spec == 'P':
+            return self.short_path
+        if format_spec == 'K':
+            return self.short_key
+        if format_spec == 'C':
+            return self.class_name
+        if format_spec == 'H':
+            return self.local_hash
+        return str(self)
 
 
 # ------------------------------------------------------------------------------
@@ -228,51 +243,30 @@ class File(Resource):
 
         :return: a ``Result``.
         """
-        parsed = urlparse(self.uri)
-
         if force:
             log.debug(f'Forcing install.')
 
         try:
+            parsed = urlparse(self.uri)
             if parsed.scheme == '':
                 content = self._from_ugor(force)
             elif parsed.scheme in ('http', 'https'):
-                content = self._from_http()
+                content = self._from_http(force)
             elif parsed.scheme == 'file':
                 content = self._from_file()
             else:
                 raise AppError(f'Unknown File URI scheme: {self.uri!r}')
-        except UgorError404:
-            return Fail(f'not installed: Ugor file {self.uri!r} not found')
+        except UgorError404 as e:
+            raise ActionBlocked(f'Ugor file {self.uri!r} not found') from e
 
         if content is None:
-            return Fail(f'not installed: {self.short_path} is already up-to-date')
+            raise ActionBlocked(f'{self.short_path} is already up-to-date')
 
         if not self.path.parent.exists():
             self.path.parent.mkdir(parents=True)
         self.path.write_bytes(content)
         if mode:
             self.path.chmod(mode)
-
-        return Ok(f'installed {self.short_path}')
-
-    def _from_ugor(self, force):
-        """Get the file content from Ugor.
-
-        Updates the etag and modified properties with values from Ugor.
-        """
-
-        file = ugor.get(
-            self.uri,
-            etag=self.last_etag if not force else None,
-            modified=self.last_modified if not force else None,
-        )
-        if file is None:
-            return None
-
-        self.last_etag = file.last_etag
-        self.last_modified = file.last_modified
-        return file.content
 
     def _from_http(self, force=False):
         """Get the file content from an HTTP URL.
@@ -298,37 +292,50 @@ class File(Resource):
             return None
         return r.content
 
-    def _from_file(self):
-        """Get the file content from a local file.
-
-        Updates the etag and modified properties with values from the file.
-        """
-        import hashlib
-
-        path = Path(urlparse(self.uri).path)
-        if not path.exists():
-            raise AppError(f'Local file does not exist: {self.uri}')
-
-        content = path.read_bytes()
-        etag = hashlib.sha1(content).hexdigest()
-        modified = path.stat().st_mtime
-
-        if self.last_etag == etag or self.last_modified == modified:
-            return None
-        self.last_etag = etag
-        self.last_modified = modified
-        return path.read_bytes()
-
     def upload(self, force=False, **kwargs):
         """Upload the file to Ugor."""
 
         if force:
             log.debug(f'Forcing upload.')
 
-        if urlparse(self.uri).scheme != '':
-            raise AppError(f'Ugor files must have a relative path URI, not: {self.uri}')
         if not self.path.exists():
-            return Fail(f'not uploaded: {self.short_path} does not exist')
+            raise ActionBlocked(f'{self.short_path} does not exist')
+
+        parsed = urlparse(self.uri)
+        if parsed.scheme == '':
+            return self._to_ugor(force)
+        elif parsed.scheme == 'file':
+            return self._to_file(force)
+        else:
+            raise AppError(f'invalid upload URI: {self.uri}')
+
+    # ------------------------------------------------------
+    # UGOR FILE
+
+    def _from_ugor(self, force):
+        """Get the file content from Ugor.
+
+        Updates the etag and modified properties with values from Ugor.
+        """
+
+        file = ugor.get(
+            self.uri,
+            etag=self.last_etag if not force else None,
+            modified=self.last_modified if not force else None,
+        )
+        if file is None:
+            return None
+
+        self.last_etag = file.last_etag
+        self.last_modified = file.last_modified
+        return file.content
+
+    def _to_ugor(self, force):
+        """Upload the file to Ugor."""
+
+        # Don't overwrite existing ugor files on first upload
+        if not self.last_etag and ugor.exists(self.uri) and not force:
+            raise ActionBlocked(f'ugor file {self.uri!r} already exists')
 
         file, created = ugor.put(
             self.path.read_bytes(),
@@ -341,8 +348,53 @@ class File(Resource):
         )
         self.last_etag = file.last_etag
         self.last_modified = file.last_modified
-        action = 'new' if created else 'existing'
-        return Ok(f'uploaded {action} {self.short_path}')
+
+    # ------------------------------------------------------
+    # LOCAL FILE
+
+    @staticmethod
+    def _file_metadata(path, content=None):
+        """Return (etag, modified) for given file."""
+        import hashlib
+
+        if not content:
+            content = path.read_bytes()
+
+        etag = hashlib.sha1(content).hexdigest()
+        modified = path.stat().st_mtime_ns
+        return etag, modified
+
+    def _from_file(self):
+        """Get the file content from a local file.
+
+        Updates the etag and modified properties with values from the file.
+        """
+
+        src = Path(urlparse(self.uri).path)
+        if not src.exists():
+            raise ActionBlocked(f'local file does not exist: {self.uri!r}')
+
+        content = src.read_bytes()
+        etag, modified = self._file_metadata(src, content)
+
+        if self.last_etag == etag or self.last_modified == modified:
+            return None
+        self.last_etag = etag
+        self.last_modified = modified
+        return src.read_bytes()
+
+    def _to_file(self, force):
+        """Upload the file to a local file."""
+
+        dst = Path(urlparse(self.uri).path)
+
+        # Don't overwrite existing local files on first upload
+        if not self.last_etag and dst.exists() and not force:
+            raise ActionBlocked(f'local file {self.uri!r} already exists')
+
+        content = self.path.read_bytes()
+        dst.write_bytes(content)
+        self.last_etag, self.last_modified = self._file_metadata(dst, content)
 
 
 # ------------------------------------------------------------------------------
@@ -380,10 +432,19 @@ def cache_key(path, uri):
 
     path = normalize_path(path)
 
+    # Two-letter key prefix
+    base = ord('A')
+    mod = ord('Z') - base + 1
+    x = chr(base + (len(path) % mod))
+    y = chr(base + (len(uri) % mod))
+
+    # SHA1 hash of path and uri
     h = hashlib.sha1()
     h.update(path.encode())
     h.update(uri.encode())
-    return h.hexdigest()
+    dig = h.hexdigest()
+
+    return f'{x}{y}{dig}'
 
 
 def expand_key(key):

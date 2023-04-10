@@ -159,6 +159,11 @@ def put(o, name='', use_pickle=False, force=False, **metadata):
         file.last_modified = r.headers['Last-Modified']
     except KeyError as e:
         raise AppError(f'Ugor server did not return ETag and/or Last-Modified headers') from e
+
+    if r.status_code == 201:
+        log.debug('Ugor put: Created', file.name)
+    elif r.status_code == 200:
+        log.debug('Ugor put: Updated', file.name)
     return file, r.status_code == 201
 
 
@@ -200,6 +205,18 @@ def info():
     r = requests.request('INFO', ugor_url, auth=auth())
     r.raise_for_status()
     return r.json()
+
+
+@_ugor_error
+def exists(name):
+    """Check if a file exists on the Ugor server"""
+    url = _url(name)
+    log.debug('HEAD', url)
+    r = requests.head(url, auth=auth())
+    if r.status_code == 404:
+        return False
+    r.raise_for_status()
+    return True
 
 
 # -----------------------------------------------------------------------------
