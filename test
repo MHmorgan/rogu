@@ -14,7 +14,6 @@
 # Implicitly tests:
 #   - get (via upload)
 #
-# TODO Use local docker Ugor server
 
 
 #{{{

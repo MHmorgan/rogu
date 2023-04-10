@@ -1,4 +1,17 @@
-Run tests:
+Run tests (these three are equivalent):
 
 	./test all
+	make test
+	make
 
+Run a specific test:
+
+	./test <test-name>
+
+Test names:
+
+ 	install
+ 	sync
+ 	ugor
+ 	update
+ 	upload
