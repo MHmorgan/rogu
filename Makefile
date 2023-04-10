@@ -11,7 +11,8 @@ update:
 	rm -r $(APP)/thirdparty/*.dist-info
 
 build:
-	python3 -m zipapp --output out/$(APP) --python "/usr/bin/env python3 -OO" --compress $(APP)
+	mkdir -p build
+	python3 -m zipapp --output build/$(APP) --python "/usr/bin/env python3 -OO" --compress $(APP)
 
 test:
 	./test all
