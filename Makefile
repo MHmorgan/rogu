@@ -14,6 +14,6 @@ build:
 	python3 -m zipapp --output out/$(APP) --python "/usr/bin/env python3 -OO" --compress $(APP)
 
 test:
-	./test ugor install upload
+	./test all
 
 .PHONY: all lint update build test

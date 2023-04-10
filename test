@@ -339,13 +339,17 @@ if ! [[ -d venv ]]; then
     exit 1
 fi
 
+ALL_COMMANDS=(ugor install upload sync update)
+
 # Determine which tests to run
 if (( $# == 0 )); then
     COMMANDS=$(gum choose --no-limit \
         --header="Choose tests:" \
-        --selected="ugor,install,upload,sync,update" \
-        ugor install upload sync update)
+        --selected=$(echo $ALL_COMMANDS | tr ' ' ',') \
+        ${=ALL_COMMANDS})
     [[ -n "$COMMANDS" ]] || exit 0
+elif [[ $@ == "all" ]]; then
+    COMMANDS=$ALL_COMMANDS
 else
     COMMANDS=$@
 fi
