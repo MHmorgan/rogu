@@ -168,7 +168,7 @@ def put(o, name='', use_pickle=False, force=False, **metadata):
 
 
 @_ugor_error
-def delete(name, force=False, etag=None, modified=None):  # TODO
+def delete(name, force=False, etag=None, modified=None):
     """Delete a file from the Ugor server"""
     headers = {}
     if etag and not force:

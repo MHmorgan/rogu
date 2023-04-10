@@ -165,7 +165,9 @@ function ugor {
 # ------------------------------------------------------------------------------
 # INSTALL
 
-function install {
+# TODO Test archive install
+# TODO Test repo install
+function install {  # Rename to install-file?
 
     # Rogu file
 
@@ -260,6 +262,8 @@ function install {
 # ------------------------------------------------------------------------------
 # UPLOAD
 
+# TODO Test archive upload
+# TODO Test repo upload
 function upload {
 
     # Rogu file
@@ -315,14 +319,16 @@ function upload {
     fail "Uploaded modified first file unexpectedly"
     success
 
-    # TODO Local file
+    # TODO Upload local file
 }
 
 
 # ------------------------------------------------------------------------------
 # SYNC
 
-# TODO Test sync functionality
+# TODO Test file sync
+# TODO Test archive sync
+# TODO Test repo sync
 
 
 # ------------------------------------------------------------------------------
