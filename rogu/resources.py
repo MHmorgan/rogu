@@ -1,6 +1,12 @@
 """types defines the types used in RDSL.
 
-resources has no import side effects, and can be imported globally.
+RESOURCE ACTIONS
+
+ - Should raise ActionBlocked is blocked by a non-technical condition.
+
+ - Should raise AppError if blocked by an expected technical condition.
+
+ - Should not interact with the cache or history.
 """
 import shutil
 from functools import cache
@@ -12,7 +18,20 @@ import ugor
 from errors import *
 
 
-# TODO __all__
+__all__ = [
+    'Archive',
+    'File',
+    'Repo',
+    'Resource',
+
+    'cache_key',
+    'delete',
+    'exists',
+    'expand_key',
+    'get',
+    'is_archive',
+    'normalize_path',
+]
 
 
 class Resource:

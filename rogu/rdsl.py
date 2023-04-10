@@ -1,9 +1,11 @@
 """rdsl module implements the domain specific language used to automate
 Rogu's tasks.
 
-rdsl has no import side effects, and can be imported globally.
+RDSL RESOURCE ACTIONS
 
-The language in abbreviated as RDSL.
+ - Are responsible for managing resource cache and history.
+
+ - Should always return a Result object.
 """
 
 import os
@@ -21,7 +23,26 @@ from resources import (
 from result import Result, Ok, Fail
 
 
-# TODO __all__
+__all__ = [
+    'chdir',
+    'fetch',
+    'update',
+    'install',
+    'upload',
+    'sync',
+    'move',
+    'delete',
+    'store',
+
+    'exists',
+    'is_ignored',
+    'is_installed',
+    'is_uploaded',
+    'is_synced',
+    'is_repo',
+    'is_modified',
+    'is_ugor',
+]
 
 
 def need_resource(f):

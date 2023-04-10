@@ -1,7 +1,8 @@
-"""result provides the Result type used for resource actions.
+"""result implements Result type returned by RDSL resource actions."""
 
-"""
 from functools import partial
+
+__all__ = ['Result', 'Ok', 'Fail']
 
 
 class Result:
