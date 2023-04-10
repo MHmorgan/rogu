@@ -4,6 +4,9 @@ test*dir
 *.sqlite
 *.db
 
+# Local copies of third-party libraries
+thirdparty/
+
 # PyCharm
 .idea/
 
