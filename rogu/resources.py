@@ -198,32 +198,6 @@ class Archive(Resource):  # TODO
             self.last_etag = ''
             self.last_modified = ''
 
-    def read(self, **kwargs):
-        """Read the byte content of the archive.
-
-        This will make the archive from the directory path.
-        """
-        # TODO Make the archive and read the bytes
-        return self.path.read_bytes()
-
-    def write_to(self, path=None, force=False, **kwargs):  # TODO
-        """Write the archive to a directory path. Automatically extracts.
-
-        If force is True, will overwrite existing content.
-
-        If url is set, will download the archive to the path, otherwise
-        the archive will be fetched from Ugor based on uri (name).
-        """
-        return self.path.write_bytes()
-
-    def install(self, path=None, force=False, **kwargs):  # TODO
-        """Install the archive to a directory path. Automatically extracts.
-
-        Behaves like write, but will create a record of the installation
-        to keep it up-to-date.
-        """
-        return self.path.write_bytes()
-
 
 # ------------------------------------------------------------------------------
 # FILE
@@ -265,51 +239,29 @@ class File(Resource):
         if force:
             log.debug(f'Forcing install.')
 
+        if urlparse(self.uri).scheme != '':
+            raise ActionBlocked(f'Invalid Ugor URI: {self.uri!r}')
+
         try:
-            parsed = urlparse(self.uri)
-            if parsed.scheme == '':
-                content = self._from_ugor(force)
-            elif parsed.scheme in ('http', 'https'):
-                content = self._from_http(force)
-            elif parsed.scheme == 'file':
-                content = self._from_file()
-            else:
-                raise AppError(f'Unknown File URI scheme: {self.uri!r}')
+            file = ugor.get(
+                self.uri,
+                etag=self.last_etag if not force else None,
+                modified=self.last_modified if not force else None,
+            )
         except UgorError404 as e:
             raise ActionBlocked(f'Ugor file {self.uri!r} not found') from e
 
-        if content is None:
+        if file is None:
             raise ActionBlocked(f'{self.short_path} is already up-to-date')
+
+        self.last_etag = file.last_etag
+        self.last_modified = file.last_modified
 
         if not self.path.parent.exists():
             self.path.parent.mkdir(parents=True)
-        self.path.write_bytes(content)
+        self.path.write_bytes(file.content)
         if mode:
             self.path.chmod(mode)
-
-    def _from_http(self, force=False):
-        """Get the file content from an HTTP URL.
-
-        Updates the etag and modified properties with values from the server.
-        """
-        import requests
-
-        headers = {}
-        if self.last_etag and not force:
-            headers['If-None-Match'] = self.last_etag
-        if self.last_modified and not force:
-            headers['If-Modified-Since'] = self.last_modified
-
-        log.debug('GET', self.uri, *[f"{k}: '{v}'" for k, v in headers.items()])
-
-        r = requests.get(self.uri, headers=headers)
-        self.last_etag = r.headers.get('ETag')
-        self.last_modified = r.headers.get('Last-Modified')
-
-        r.raise_for_status()
-        if r.status_code == 304:
-            return None
-        return r.content
 
     def upload(self, force=False, **kwargs):
         """Upload the file to Ugor."""
@@ -320,37 +272,8 @@ class File(Resource):
         if not self.path.exists():
             raise ActionBlocked(f'{self.short_path} does not exist')
 
-        parsed = urlparse(self.uri)
-        if parsed.scheme == '':
-            return self._to_ugor(force)
-        elif parsed.scheme == 'file':
-            return self._to_file(force)
-        else:
-            raise AppError(f'invalid upload URI: {self.uri}')
-
-    # ------------------------------------------------------
-    # UGOR FILE
-
-    def _from_ugor(self, force):
-        """Get the file content from Ugor.
-
-        Updates the etag and modified properties with values from Ugor.
-        """
-
-        file = ugor.get(
-            self.uri,
-            etag=self.last_etag if not force else None,
-            modified=self.last_modified if not force else None,
-        )
-        if file is None:
-            return None
-
-        self.last_etag = file.last_etag
-        self.last_modified = file.last_modified
-        return file.content
-
-    def _to_ugor(self, force):
-        """Upload the file to Ugor."""
+        if urlparse(self.uri).scheme != '':
+            raise ActionBlocked(f'Invalid Ugor URI: {self.uri!r}')
 
         # Don't overwrite existing ugor files on first upload
         if not self.last_etag and ugor.exists(self.uri) and not force:
@@ -367,53 +290,6 @@ class File(Resource):
         )
         self.last_etag = file.last_etag
         self.last_modified = file.last_modified
-
-    # ------------------------------------------------------
-    # LOCAL FILE
-
-    @staticmethod
-    def _file_metadata(path, content=None):
-        """Return (etag, modified) for given file."""
-        import hashlib
-
-        if not content:
-            content = path.read_bytes()
-
-        etag = hashlib.sha1(content).hexdigest()
-        modified = path.stat().st_mtime_ns
-        return etag, modified
-
-    def _from_file(self):
-        """Get the file content from a local file.
-
-        Updates the etag and modified properties with values from the file.
-        """
-
-        src = Path(urlparse(self.uri).path)
-        if not src.exists():
-            raise ActionBlocked(f'local file does not exist: {self.uri!r}')
-
-        content = src.read_bytes()
-        etag, modified = self._file_metadata(src, content)
-
-        if self.last_etag == etag or self.last_modified == modified:
-            return None
-        self.last_etag = etag
-        self.last_modified = modified
-        return src.read_bytes()
-
-    def _to_file(self, force):
-        """Upload the file to a local file."""
-
-        dst = Path(urlparse(self.uri).path)
-
-        # Don't overwrite existing local files on first upload
-        if not self.last_etag and dst.exists() and not force:
-            raise ActionBlocked(f'local file {self.uri!r} already exists')
-
-        content = self.path.read_bytes()
-        dst.write_bytes(content)
-        self.last_etag, self.last_modified = self._file_metadata(dst, content)
 
 
 # ------------------------------------------------------------------------------

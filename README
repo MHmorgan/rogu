@@ -14,9 +14,9 @@ Run tests (the three are equivalent; requires setup):
 	make test
 	make
 
-Run a specific test:
+Run a specific test(s):
 
-	./test <test-name>
+	./test [test-name...]
 
 Test names:
 

@@ -34,6 +34,9 @@ def get(path, uri, force, **kwargs):
     """Get a resource from URI and write to PATH.
 
     URI may be a relative path or file name (an Ugor name), or a URL.
+
+    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
+    success.
     """
     import rdsl
 
@@ -45,11 +48,9 @@ def get(path, uri, force, **kwargs):
         resource.category |= Resource.IGNORE
 
     res = rdsl.install(resource, force=force)
-    txt = format(res, '    ')
-    if not res:
-        log.bad(txt)
-        sys.exit(1)
-    log.good(txt)
+    txt = format(res, '--- ')
+    log.info(txt)
+    sys.exit(0 if res else 2)
 
 
 @cli.command()
@@ -62,18 +63,20 @@ def install(path, uri, force):
     URI may be a relative path (an Ugor name), or a URL.
 
     Installed resources are kept up-to-date with update.
+
+    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
+    success.
     """
     import cache
     import rdsl
 
     resource = rdsl.fetch(path=path, uri=uri)
     res = rdsl.install(resource, force=force)
-    txt = format(res, '    ')
-    if not res:
-        log.bad(txt)
-        sys.exit(1)
-    log.good(txt)
     cache.resources[resource] = resource
+
+    txt = format(res, '--- ')
+    log.info(txt)
+    sys.exit(0 if res else 2)
 
 
 @cli.command()
@@ -86,18 +89,20 @@ def upload(path, uri, force):
     To upload to Ugor, URI must be a relative path (an Ugor name).
 
     Uploaded resources are kept up-to-date with update.
+
+    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
+    success.
     """
     import cache
     import rdsl
 
     resource = rdsl.fetch(path=path, uri=uri)
     res = rdsl.upload(resource, force=force)
-    txt = format(res, '    ')
-    if not res:
-        log.bad(txt)
-        sys.exit(1)
-    log.good(txt)
     cache.resources[resource] = resource
+
+    txt = format(res, '--- ')
+    log.info(txt)
+    sys.exit(0 if res else 2)
 
 
 @cli.command()
@@ -110,18 +115,20 @@ def sync(path, uri):
     URI must be a relative path or file name (an Ugor name).
 
     Synchronised resources are kept up-to-date with update.
+
+    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
+    success.
     """
     import cache
     import rdsl
 
     resource = rdsl.fetch(path=path, uri=uri)
     res = rdsl.sync(resource)
-    txt = format(res, '    ')
-    if not res:
-        log.bad(txt)
-        sys.exit(1)
-    log.good(txt)
     cache.resources[resource] = resource
+
+    txt = format(res, '--- ')
+    log.info(txt)
+    sys.exit(0 if res else 2)
 
 
 @cli.command()
@@ -132,6 +139,9 @@ def update(key, path, uri):
     """Update resources.
 
     If no resource is specified, all resources are updated.
+
+    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
+    success.
     """
     import cache
     import rdsl
@@ -157,11 +167,9 @@ def update(key, path, uri):
         except AppError as e:
             log.error(e)
         else:
-            txt = format(res, '    ')
-            if not res:
-                log.bad(txt)
-            else:
-                log.good(txt)
+            txt = format(res, '--- ')
+            log.info(txt)
+            if res:
                 cache.resources[resource] = resource
 
 
@@ -179,6 +187,9 @@ def rm(key, local, force, no_remote):
 
     Without --no-remote and if the resource URI is an Ugor name, the Ugor file is
     removed from the server.
+
+    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
+    success.
     """
     import cache
     import resources
@@ -195,11 +206,9 @@ def rm(key, local, force, no_remote):
         remote=not no_remote,
         force=force,
     )
-    txt = format(res, '    ')
-    if not res:
-        log.bad(txt)
-        sys.exit(1)
-    log.good(txt)
+    txt = format(res, '--- ')
+    log.info(txt)
+    sys.exit(0 if res else 2)
 
 
 @cli.command()
@@ -209,6 +218,9 @@ def mv(key, path):
     """Move a resource locally.
 
     KEY is the resource key and PATH in the new local path.
+
+    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
+    success.
     """
     import cache
     import resources
@@ -221,14 +233,12 @@ def mv(key, path):
 
     r = cache.resources[key]
     res = rdsl.move(r, path)
-    txt = format(res, '    ')
-    if not res:
-        log.bad(txt)
-        sys.exit(1)
-    log.good(txt)
-
     del cache.resources[key]
     cache.resources[r] = r
+
+    txt = format(res, '--- ')
+    log.info(txt)
+    sys.exit(0 if res else 2)
 
 
 @cli.command()

@@ -131,6 +131,7 @@ def fetch(path, uri, **kwargs):
     """
     import resources
     from os.path import isdir, isfile
+    from urllib.parse import urlparse
 
     type_ = kwargs.pop('type', None)
     cls = resources.Resource.subclasses.get(type_)
@@ -152,14 +153,14 @@ def fetch(path, uri, **kwargs):
         return cls(path, uri)
 
     # Determine resource type
-    if isfile(path):
-        return File(path, uri, **kwargs)
-    if uri.endswith('.git'):
+    if uri.endswith('.git') and isdir(path):
         return Repo(path, uri, **kwargs)
-    elif is_archive(uri) or isdir(path):
+    if is_archive(uri) or isdir(path):
         return Archive(path, uri, **kwargs)
-    else:
+    if isfile(path) or urlparse(uri).scheme == '':
         return File(path, uri, **kwargs)
+
+    raise AppError(f'cannot determine resource type: {path} {uri}')
 
 
 @need_resource
@@ -304,7 +305,7 @@ def sync(resource, **kwargs):
     else:
         res += 'not installed: has local changes'
 
-    return res('not synced')
+    return res + Fail('not synced')
 
 
 @need_resource
