@@ -16,7 +16,7 @@ __all__ = ['error', 'warn', 'good', 'bad', 'info', 'debug']
 
 
 def error(*args, sep=' ', pre='[!!] ', **kwargs):
-    s = sep.join(str(m) for m in args).replace('\n', ' ')
+    s = sep.join(str(m) for m in args)
     kwargs.setdefault('fg', 'red')
     kwargs.setdefault('bold', True)
     kwargs.setdefault('err', True)
@@ -24,7 +24,7 @@ def error(*args, sep=' ', pre='[!!] ', **kwargs):
 
 
 def warn(*args, sep=' ', pre='[!] ', **kwargs):
-    s = sep.join(str(m) for m in args).replace('\n', ' ')
+    s = sep.join(str(m) for m in args)
     kwargs.setdefault('fg', 'yellow')
     kwargs.setdefault('bold', True)
     kwargs.setdefault('err', True)
@@ -32,7 +32,7 @@ def warn(*args, sep=' ', pre='[!] ', **kwargs):
 
 
 def good(*args, sep=' ', pre='[+] ', **kwargs):
-    s = sep.join(str(m) for m in args).replace('\n', ' ')
+    s = sep.join(str(m) for m in args)
     kwargs.setdefault('fg', 'green')
     kwargs.setdefault('bold', True)
     kwargs.setdefault('err', True)
@@ -43,14 +43,14 @@ bad = partial(error, pre='[-] ')
 
 
 def info(*args, sep=' ', pre='[*] ', **kwargs):
-    s = sep.join(str(m) for m in args).replace('\n', ' ')
+    s = sep.join(str(m) for m in args)
     kwargs.setdefault('err', True)
     secho(pre + s, **kwargs)
 
 
 def debug(*args, sep=' ', pre='[ ] ', **kwargs):
     if __debug__:
-        s = sep.join(str(m) for m in args).replace('\n', ' ')
+        s = sep.join(str(m) for m in args)
         kwargs.setdefault('dim', True)
         kwargs.setdefault('err', True)
         secho(pre + s, **kwargs)
