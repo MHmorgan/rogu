@@ -77,7 +77,7 @@ class Result:
             return ''
 
         # Otherwise, use fmt as prefix to each message line.
-        return f'\n{fmt}'.join(self.messages)
+        return f'\n{fmt}'.join(reversed(self.messages))
 
     @property
     def message(self):
