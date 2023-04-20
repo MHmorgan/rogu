@@ -1,32 +1,28 @@
 #!/usr/bin/env zsh
 
-# Testing script for Rogu
-#
-# Usage: ./test [testname...]
-#
-# Explicitly tests:
-#   - ugor commands
-#   - install
-#   - upload
-#   - sync
-#   - update
-#
-# Implicitly tests:
-#   - get (via upload)
-#
-
-
 export ROGU_APP_DIR=testappdir
 
 DIR=testdir
 
-# To Ugor
-LOCAL_01=$DIR/01local.txt
-LOCAL_02=$DIR/02local.json
+# Test files with content
+FILE1=$DIR/01local.txt
+FILE2=$DIR/02local.json
+# Test files without content
+FILE3=$DIR/03local.txt
+FILE4=$DIR/04local.txt
+# Ugor files
+RFILE1=$DIR/01remote.txt
+RFILE2=$DIR/02remote.json
 
-# From Ugor
-REMOTE_01=$DIR/01remote.txt
-REMOTE_02=$DIR/02remote.json
+# Test directory with content
+DIR1=$DIR/local-dir01
+DIR2=$DIR/local-dir02
+# Test directory without content
+DIR3=$DIR/local-dir03
+DIR4=$DIR/local-dir04
+# Ugor directories
+RARCHIVE1=$DIR/remote-dir01
+RARCHIVE2=$DIR/remote-dir02
 
 SCRATCH=$DIR/scratch
 
@@ -61,7 +57,6 @@ function header {
     echo
     gum style \
         --border=rounded \
-        --border-foreground="#ff6d67" \
         --width=20 \
         --align=center "$*"
 }
@@ -74,12 +69,35 @@ function fail {
     exit 1
 }
 
+function failed {
+    echo "\n$fg_bold[red]FAILED$reset_color"
+    if [[ "$FAIL_DUMP" == 1 ]]; then
+        dump_history_resources
+    fi
+    exit 1
+}
+
 function assert_equal {
-    test -f $1 || fail "File $1 does not exist"
-    test -f $2 || fail "File $2 does not exist"
-    if [[ -n "$(diff $1 $2)" ]]; then
-        diff $1 $2
-        fail "Files $1 and $2 are not equal"
+    # Compare two files
+    if [[ -f $1 && -f $2 ]]
+    then
+        if [[ -n "$(diff $1 $2)" ]]
+        then
+            diff $1 $2
+            fail "Files $1 and $2 are not equal"
+        fi
+
+    # Compare two directories
+    elif [[ -d $1 && -d $2 ]]
+    then
+        if [[ -n "$(diff -r $1 $2)" ]]
+        then
+            diff -r $1 $2
+            fail "Directories $1 and $2 are not equal"
+        fi
+
+    else
+        fail "Files $1 and $2 are not of the same type"
     fi
 }
 
@@ -100,9 +118,14 @@ function setup {
     bold "\nCreating..."
     mkdir -pv $DIR
     mkdir -pv $ROGU_APP_DIR
+    mkdir $DIR1
+    mkdir $DIR2
 
-    echo "Hello\nWorld\nFrom Rogu\n" > $LOCAL_01
-    echo '{"Hello": "World", "From": "Rogu"}' > $LOCAL_02
+    echo "Hello\nWorld\nFrom Rogu\n" > $FILE1
+    echo '{"Hello": "World", "From": "Rogu"}' > $FILE2
+
+    cp $FILE1 $FILE2 $DIR1
+    cp $FILE1 $FILE2 $DIR2
 }
 
 
@@ -116,15 +139,23 @@ function teardown {
 
     bold "\nRemoving..."
     rm -rfv $DIR
+    rm -rfv $ROGU_APP_DIR/file-cache
     rm -fv $ROGU_APP_DIR/rogu-history.csv
     rm -fv $ROGU_APP_DIR/rogu-resource-cache.db
     FAIL_DUMP=0
 
     # Remove test files from ugor
     local LIST=$(run_rogu ugor list)
-    for FILE in $REMOTE_01 $REMOTE_02; do
+    local TARGETS=(
+        $RFILE1
+        $RFILE2
+        $RARCHIVE1.tar.xz
+        $RARCHIVE2.zip
+    )
+    for FILE in $TARGETS; do
         if [[ $LIST =~ $FILE ]]; then
-            run_rogu ugor delete $FILE
+            run_rogu ugor delete $FILE &&
+            echo "$FILE from Ugor"
         fi
     done
 }
@@ -138,7 +169,7 @@ function ugor {
     wait 3 "Ugor stuff..."
 
     log "Creating file 01..."
-    test_rogu ugor put $LOCAL_01 $REMOTE_01 \
+    test_rogu ugor put $FILE1 $RFILE1 \
         --description='File 01' \
         --tag='test tag' \
         --tag2='test tag 2' \
@@ -152,15 +183,15 @@ function ugor {
     success
 
     log "Getting file 01..."
-    test_rogu ugor get $REMOTE_01 || fail 'Failed to download file 01'
+    test_rogu ugor get $RFILE1 || fail 'Failed to download file 01'
     success
 
     log "Deleting file 01..."
-    test_rogu ugor delete $REMOTE_01 || fail 'Failed to delete file 01'
+    test_rogu ugor delete $RFILE1 || fail 'Failed to delete file 01'
     success
 
     log "Getting non-existent file 01..."
-    test_rogu ugor get $REMOTE_01 && fail 'Got non-existent file 01'
+    test_rogu ugor get $RFILE1 && fail 'Got non-existent file 01'
     success
 
     # TODO Test Ugor's find functionality
@@ -168,208 +199,168 @@ function ugor {
 
 
 # ------------------------------------------------------------------------------
-# INSTALL
+# FILE
 
-function install {  # Rename to install-file?
+function file {
 
-    # Rogu file
+    local URI1="ugor://file/$RFILE1"
+    local URI2="ugor://file/$RFILE2"
 
-    wait 3 "Rogu files..."
-
-    log "Installing non-existent file"
-    test_rogu install $REMOTE_01 $REMOTE_01 &&
-    fail "Installed non-existent file unexpectedly"
-    success
-
-    log "Installing from invalid Rogu URI"
-    test_rogu install $REMOTE_01 https://foobar.org/rogu &&
-    fail "Installed from invalid Rogu URI unexpectedly"
-    success
-
-    log "Installing file"
-    run_rogu ugor put $LOCAL_01 $REMOTE_01
-    test_rogu install $REMOTE_01 $REMOTE_01 ||
-    fail "Failed to install file"
-    assert_equal $LOCAL_01 $REMOTE_01
-    success
-
-    log "Installing file again"
-    test_rogu install $REMOTE_01 $REMOTE_01 &&
-    fail "Installed file again unexpectedly"
-    success
-
-    log "Modifying and installing file"
-    echo "Something else" > $REMOTE_01
-    test_rogu install $REMOTE_01 $REMOTE_01 &&
-    fail "Wrote over modified file unexpectedly"
-    success
-
-    log "Remove and install file"
-    rm $REMOTE_01
-    test_rogu install $REMOTE_01 $REMOTE_01 &&
-    fail "Installed file unexpectedly"
-    success
-
-    log "Force install file"
-    test_rogu install --force $REMOTE_01 $REMOTE_01 ||
-    fail "Failed to force install file"
-    success
-
-    log "Install file with different name"
-    test_rogu install $REMOTE_02 $REMOTE_01 ||
-    fail "Failed to install file with different name"
-    success
-
-    log "Install other file with same name"
-    run_rogu ugor put $LOCAL_02 $REMOTE_02
-    test_rogu install $REMOTE_02 $REMOTE_02 &&
-    fail "Installed other file with same name unexpectedly"
-    success
-
-    log "Force install other file with same name"
-    test_rogu install --force $REMOTE_02 $REMOTE_02 ||
-    fail "Failed to force install other file with same name"
-    assert_equal $LOCAL_02 $REMOTE_02
-    success
-
-    # TODO Test install archive
-    # wait 3 "Rogu archives..."
-    # TODO Test install repo
-    # wait 3 "Rogu repos..."
-}
-
-
-# ------------------------------------------------------------------------------
-# UPLOAD
-
-function upload {
-
-    # Rogu file
-
-    wait 3 "Rogu files..."
+    wait 3 "UPLOAD"
 
     log "Uploading non-existent file"
-    test_rogu upload idont/exist $REMOTE_01 &&
+    test_rogu upload idont/exist $URI1 &&
     fail "Uploaded non-existent file unexpectedly"
     success
 
     log "Uploading to invalid Rogu URI"
-    test_rogu upload $LOCAL_01 https://foobar.org/rogu &&
+    test_rogu upload $FILE1 https://foobar.org/rogu &&
     fail "Uploaded to invalid Rogu URI unexpectedly"
     success
 
     log "Uploading file"
-    test_rogu upload $LOCAL_01 $REMOTE_01 ||
-    fail "Failed to upload file"
+    test_rogu upload $FILE1 $URI1 || failed
     success
 
     log "Uploading file again"
-    test_rogu upload $LOCAL_01 $REMOTE_01 &&
+    test_rogu upload $FILE1 $URI1 &&
     fail "Uploaded file again unexpectedly"
     success
 
-    log "Get file and check content"
-    test_rogu get $SCRATCH $REMOTE_01 ||
-    fail "Failed to get file"
-    assert_equal $LOCAL_01 $SCRATCH
-    success
-
-    log "Modify and upload file"
-    echo "Something else" > $LOCAL_01
-    test_rogu upload $LOCAL_01 $REMOTE_01 ||
-    fail "Failed to upload modified file"
-    success
-
     log "Upload a different file with the same name"
-    test_rogu upload $LOCAL_02 $REMOTE_01 &&
+    test_rogu upload $FILE2 $URI1 &&
     fail "Uploaded a different file with the same name unexpectedly"
     success
 
-    log "Force upload a different file"
-    test_rogu upload --force $LOCAL_02 $REMOTE_01 ||
-    fail "Failed to force upload a different file"
+    wait 3 "INSTALL"
+
+    log "Installing non-existent file"
+    test_rogu install $RFILE1 $URI2 &&
+    fail "Installed non-existent file unexpectedly"
     success
 
-    log "Get file and check content"
-    test_rogu get $SCRATCH $REMOTE_01 ||
-    fail "Failed to get file"
-    assert_equal $LOCAL_02 $SCRATCH
+    log "Installing from invalid Rogu URI"
+    test_rogu install $RFILE1 https://foobar.org/rogu &&
+    fail "Installed from invalid Rogu URI unexpectedly"
     success
 
-    log "Upload first file w/modifications"
-    echo "Lorem ipsum..." > $LOCAL_01
-    test_rogu upload $LOCAL_01 $REMOTE_01 &&
-    fail "Uploaded modified first file unexpectedly"
+    log "Installing file"
+    test_rogu install $FILE3 $URI1 || failed
+    assert_equal $FILE1 $FILE3
     success
 
-    # TODO Test upload archive
-    # wait 3 "Rogu archives..."
-}
-
-
-# ------------------------------------------------------------------------------
-# SYNC
-
-function sync {
-
-    # Rogu file
-
-    wait 3 "Rogu files..."
-
-    log "Syncing non-existent file"
-    test_rogu sync idont/exist $REMOTE_01 &&
-    fail "Synced non-existent file unexpectedly"
+    log "Installing file again"
+    test_rogu install $FILE3 $URI1 &&
+    fail "Installed file again unexpectedly"
     success
 
-    log "Syncing to invalid Rogu URI"
-    test_rogu sync $LOCAL_01 https://foobar.org/rogu &&
-    fail "Synced to invalid Rogu URI unexpectedly"
+    wait 3 "SYNC"
+
+    log "Sync file from local to remote"
+    test_rogu sync $FILE2 $URI2 || failed
     success
 
-    log "Syncing file from local to remote"
-    test_rogu sync $LOCAL_01 $REMOTE_01 ||
-    fail "Failed to sync file from local to remote"
-    success
-
-    log "Syncing file from local to remote again"
-    test_rogu sync $LOCAL_01 $REMOTE_01 &&
+    log "Sync file from local to remote again"
+    test_rogu sync $FILE2 $URI2 &&
     fail "Synced file from local to remote again unexpectedly"
     success
 
-    local FILE1=$DIR/file1
-
-    log "Syncing file from remote to local"
-    test_rogu sync $FILE1 $REMOTE_01 ||
-    fail "Failed to sync file from remote to local"
-    assert_equal $LOCAL_01 $FILE1
+    log "Sync file from remote to local"
+    test_rogu sync $FILE4 $URI2 || failed
+    assert_equal $FILE2 $FILE4
     success
 
-    log "Syncing file from remote to local again"
-    test_rogu sync $FILE1 $REMOTE_01 &&
-    fail "Synced file from remote to local again unexpectedly"
+    wait 3 "UPDATE"
+
+    log "Modify and update file 1"
+    echo "Once upon a time, in a galaxy far far away..." > $FILE1
+    test_rogu update || failed
+    assert_equal $FILE1 $FILE3
+    assert_equal $FILE2 $FILE4
     success
 
-    log "Modify and sync file from local to remote"
-    echo "Something else" > $LOCAL_01
-    test_rogu sync $LOCAL_01 $REMOTE_01 ||
-    fail "Failed to sync modified file from local to remote"
+    log "Modify and update file 2"
+    echo "Lorem ipsum..." > $FILE2
+    test_rogu update || failed
+    assert_equal $FILE1 $FILE3
+    assert_equal $FILE2 $FILE4
     success
-
-    log "Syncing file from remote to local"
-    test_rogu sync $FILE1 $REMOTE_01 ||
-    fail "Failed to sync file from remote to local"
-    assert_equal $LOCAL_01 $FILE1
-    success
-
-    # TODO Test archive sync
-    # TODO Test repo sync
 }
 
 
 # ------------------------------------------------------------------------------
-# UPDATE
+# ARCHIVE
 
-# TODO Test update functionality
+function archive {
+
+    local URI1="ugor://archive/$RARCHIVE1"
+    local URI2="ugor://archive/$RARCHIVE2?format=zip"
+
+    wait 3 "UPLOAD"
+
+    log "Upload non-existent directory"
+    test_rogu upload idont/exist $URI1 &&
+    fail "Uploaded non-existent directory unexpectedly"
+    success
+
+    log "Upload directory"
+    test_rogu upload $DIR1 $URI1 || failed
+    success
+
+    log "Upload directory again"
+    test_rogu upload $DIR1 $URI1 &&
+    fail "Uploaded directory again unexpectedly"
+    success
+
+    wait 3 "INSTALL"
+
+    log "Install non-existent archive"
+    test_rogu install $DIR3 ugor://archive/idont/exist &&
+    fail "Installed non-existent archive unexpectedly"
+    success
+
+    log "Install archive"
+    test_rogu install $DIR3 $URI1 || failed
+    assert_equal $DIR1 $DIR3
+    success
+
+    log "Install archive again"
+    test_rogu install $DIR3 $URI1 &&
+    fail "Installed archive again unexpectedly"
+    success
+
+    wait 3 "SYNC"
+
+    log "Sync archive from local to remote"
+    test_rogu sync $DIR2 $URI2 || failed
+    success
+
+    log "Sync archive from local to remote again"
+    test_rogu sync $DIR2 $URI2 &&
+    fail "Synced archive from local to remote again unexpectedly"
+    success
+
+    log "Sync archive from remote to local"
+    test_rogu sync $DIR4 $URI2 || failed
+    assert_equal $DIR2 $DIR4
+    success
+
+    wait 3 "UPDATE"
+
+    log "Modifying and updating archive 1"
+    echo "Once upon a time, in a galaxy far, far away..." > $DIR1/README.md
+    test_rogu update || failed
+    assert_equal $DIR1 $DIR3
+    assert_equal $DIR2 $DIR4
+    success
+
+    log "Modifying and updating archive 2"
+    echo "Lorem ipsum dolor sit amet, consectetur adipiscing elit..." > $DIR2/README.md
+    test_rogu update || failed
+    assert_equal $DIR1 $DIR3
+    assert_equal $DIR2 $DIR4
+    success
+}
 
 
 # ------------------------------------------------------------------------------
@@ -380,7 +371,7 @@ if ! [[ -d venv ]]; then
     exit 1
 fi
 
-ALL_COMMANDS=(ugor install upload)
+ALL_COMMANDS=(ugor file archive)
 
 # Determine which tests to run_rogu
 if (( $# == 0 )); then

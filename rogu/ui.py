@@ -7,50 +7,47 @@ Since Rogu is a command line application, all logging is
 printed to stderr. This allows the user to redirect the
 output to a file or pipe it to another program.
 """
-from functools import partial
 
 from click import secho
 
 
-__all__ = ['error', 'warn', 'good', 'bad', 'info', 'debug']
+__all__ = ['err', 'warn', 'good', 'bad', 'debug']
 
 
-def error(*args, sep=' ', pre='[!!] ', **kwargs):
+def err(*args, sep=' ', **kwargs):
     s = sep.join(str(m) for m in args)
     kwargs.setdefault('fg', 'red')
     kwargs.setdefault('bold', True)
     kwargs.setdefault('err', True)
-    secho(pre + s, **kwargs)
+    secho(f'Error: {s}', **kwargs)
 
 
-def warn(*args, sep=' ', pre='[!] ', **kwargs):
+def warn(*args, sep=' ', **kwargs):
     s = sep.join(str(m) for m in args)
     kwargs.setdefault('fg', 'yellow')
     kwargs.setdefault('bold', True)
     kwargs.setdefault('err', True)
-    secho(pre + s, **kwargs)
+    secho(f'Warn: {s}', **kwargs)
 
 
-def good(*args, sep=' ', pre='[+] ', **kwargs):
-    s = sep.join(str(m) for m in args)
-    kwargs.setdefault('fg', 'green')
-    kwargs.setdefault('bold', True)
-    kwargs.setdefault('err', True)
-    secho(pre + s, **kwargs)
-
-
-bad = partial(error, pre='[-] ')
-
-
-def info(*args, sep=' ', pre='[*] ', **kwargs):
-    s = sep.join(str(m) for m in args)
-    kwargs.setdefault('err', True)
-    secho(pre + s, **kwargs)
-
-
-def debug(*args, sep=' ', pre='[ ] ', **kwargs):
+def debug(*args, sep=' ', **kwargs):
     if __debug__:
         s = sep.join(str(m) for m in args)
         kwargs.setdefault('dim', True)
         kwargs.setdefault('err', True)
-        secho(pre + s, **kwargs)
+        secho(s, **kwargs)
+
+
+def good(*args, sep=' ', **kwargs):
+    s = sep.join(str(m) for m in args)
+    kwargs.setdefault('fg', 'green')
+    kwargs.setdefault('bold', True)
+    secho(s, **kwargs)
+
+
+def bad(*args, sep=' ', **kwargs):
+    s = sep.join(str(m) for m in args)
+    kwargs.setdefault('fg', 'red')
+    kwargs.setdefault('bold', True)
+    secho(s, **kwargs)
+

@@ -11,17 +11,15 @@ RDSL RESOURCE ACTIONS
 import os
 from contextlib import AbstractContextManager
 
-import log
 from errors import *
 from resources import (
     Archive,
     File,
-    Repo,
     Resource,
-    is_archive
+    Release,
 )
 from result import Result, Ok, Fail
-
+from ui import *
 
 __all__ = [
     'chdir',
@@ -126,15 +124,11 @@ def fetch(path, uri, **kwargs):
 
     :param path: local resource path
     :param uri: remote resource uri
-    :keyword type: force the resource type (File/Archive/Repo)
+    :param kwargs: keyword arguments passed to the resource constructor
     :return: a ``Resource`` instance
     """
     import resources
-    from os.path import isdir, isfile
     from urllib.parse import urlparse
-
-    type_ = kwargs.pop('type', None)
-    cls = resources.Resource.subclasses.get(type_)
 
     # Stored resource
     try:
@@ -142,25 +136,19 @@ def fetch(path, uri, **kwargs):
     except ResourceNotFound:
         pass
     else:
-        log.debug(f'Found stored resource: {r}')
-        if cls and not isinstance(r, cls):
-            raise AppError(f'expected {type_} resource (forced), got {r.class_name}')
+        debug(f'Found stored resource: {r}')
         return r
 
-    # Forced resource type
-    if cls:
-        log.debug(f'Forced resource type: {type_}')
-        return cls(path, uri)
-
     # Determine resource type
-    if uri.endswith('.git') and isdir(path):
-        return Repo(path, uri, **kwargs)
-    if is_archive(uri) or isdir(path):
-        return Archive(path, uri, **kwargs)
-    if isfile(path) or urlparse(uri).scheme == '':
+    parsed = urlparse(uri)
+    if parsed.scheme == 'ugor' and parsed.netloc == 'file':
         return File(path, uri, **kwargs)
+    if parsed.scheme == 'ugor' and parsed.netloc == 'archive':
+        return Archive(path, uri, **kwargs)
+    if parsed.scheme == 'release':
+        return Release(path, uri, **kwargs)
 
-    raise AppError(f'cannot determine resource type: {path} {uri}')
+    raise AppError(f'cannot determine resource type: {path!r} {uri!r}')
 
 
 @need_resource
@@ -173,10 +161,9 @@ def update(resource):
     syncing git repositories, etc.
 
     :param resource: a ``Resource`` instance
-    :keyword force: force update even if the resource has local changes
     :return: a ``Result`` instance
     """
-    log.debug(f'Updating {resource} of category 0b{resource.category:b}')
+    debug(f'Updating {resource} of category 0b{resource.category:b}')
 
     if is_ignored(resource):
         return Fail(f'not updated: {resource.class_name} is ignored')
@@ -210,7 +197,7 @@ def install(resource, **kwargs):
     :keyword force: force installation even if the resource has local changes
     :return: a ``Result`` instance
     """
-    log.debug(f'Installing {resource!r}')
+    debug(f'Installing {resource!r}')
 
     # The resource must be installable
     if not hasattr(resource, 'install'):
@@ -221,7 +208,7 @@ def install(resource, **kwargs):
 
     # Don't install if the resource has local changes
     if is_modified(resource, ['install']) and not force:
-        return Fail('not installed: resource has local changes')
+        return Fail(f'not installed: {resource} has local changes')
 
     resource.category |= Resource.INSTALL
     try:
@@ -241,7 +228,7 @@ def upload(resource, **kwargs):
     :keyword force: force upload even if the resource has no local changes
     :return: a ``Result`` instance
     """
-    log.debug(f'Uploading {resource!r}')
+    debug(f'Uploading {resource!r}')
 
     # The resource must be uploadable
     if not hasattr(resource, 'upload'):
@@ -252,7 +239,7 @@ def upload(resource, **kwargs):
 
     # Don't upload if the resource has no local changes
     if not is_modified(resource, ['upload']) and not force:
-        return Fail('not uploaded: resource has no local changes')
+        return Fail(f'not uploaded: {resource} has no local changes')
 
     resource.category |= Resource.UPLOAD
     try:
@@ -272,7 +259,7 @@ def sync(resource, **kwargs):
     :param resource: a ``Resource`` instance
     :return: a ``Result`` instance
     """
-    log.debug(f'Synchronising {resource!r}')
+    debug(f'Synchronising {resource!r}')
 
     # The resource must be installable and uploadable
     if not (hasattr(resource, 'install') and hasattr(resource, 'upload')):
@@ -386,6 +373,7 @@ def delete(resource, local=False, remote=True, force=False):
 def store(resource):
     """Store a resource in cache."""
     import cache
+    # TODO Store in modified cache as well - and start using this
     cache.resources[resource] = resource
 
 
@@ -434,6 +422,9 @@ def is_modified(resource, actions=None):
     does not exist, it is considered modified.
     If there are no history entries for the resource it is considered unmodified
     if it doesn't exist locally.
+
+    TODO Use a dedicated modified cache instead. The cache should be a shelve
+    dict mapping resources their last recorded local resource hash.
     """
     import history
 

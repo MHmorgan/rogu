@@ -4,9 +4,9 @@ from functools import partial
 
 # NOTE Only import the bare minimum here, to keep the startup time low.
 import click
-import log
 from click import echo, style
 from resources import Resource
+from ui import *
 
 
 # TODO Support scripts in CLI
@@ -24,34 +24,25 @@ def cli():
 
 
 @cli.command()
-@click.argument('path')
-@click.argument('uri')
-@click.option('-f', '--force', is_flag=True, help='Overwrite existing files.')
-@click.option('--type', type=click.Choice(Resource.subclasses.keys()), help='Force resource type.')
-@click.option('--etag', help='ETag precondition.')
-@click.option('--modified', help='Modified precondition.')
-def get(path, uri, force, **kwargs):
-    """Get a resource from URI and write to PATH.
+@click.argument('name')
+def get(name):
+    """Get an Ugor file and print it to stdout."""
+    import ugor
+    file = ugor.get(name)
+    sys.stdout.buffer.write(file.content)
 
-    URI may be a relative path or file name (an Ugor name), or a URL.
 
-    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
-    success.
-    """
-    import rdsl
+@cli.command()
+@click.argument('name')
+def put(name):
+    """Put an Ugor file from stdin."""
+    import ugor
+    content = sys.stdin.buffer.read()
+    ugor.put(obj=content, name=name)
 
-    resource = rdsl.fetch(path=path, uri=uri, **kwargs)
 
-    # Only ignore uncategorized resources. Otherwise, we would ignore
-    # resources which have previously been installed/updated.
-    if not resource.category:
-        resource.category |= Resource.IGNORE
-
-    res = rdsl.install(resource, force=force)
-    txt = format(res, '--- ')
-    log.info(txt)
-    sys.exit(0 if res else 2)
-
+# ------------------------------------------------------------------------------
+# RESOURCE COMMANDS
 
 @cli.command()
 @click.argument('path')
@@ -72,10 +63,11 @@ def install(path, uri, force):
 
     resource = rdsl.fetch(path=path, uri=uri)
     res = rdsl.install(resource, force=force)
-    cache.resources[resource] = resource
+    if res.is_success:
+        cache.resources[resource] = resource
 
-    txt = format(res, '--- ')
-    log.info(txt)
+    txt = format(res, '    ')
+    echo(txt.capitalize())
     sys.exit(0 if res else 2)
 
 
@@ -98,10 +90,11 @@ def upload(path, uri, force):
 
     resource = rdsl.fetch(path=path, uri=uri)
     res = rdsl.upload(resource, force=force)
-    cache.resources[resource] = resource
+    if res.is_success:
+        cache.resources[resource] = resource
 
-    txt = format(res, '--- ')
-    log.info(txt)
+    txt = format(res, '    ')
+    echo(txt.capitalize())
     sys.exit(0 if res else 2)
 
 
@@ -124,10 +117,11 @@ def sync(path, uri):
 
     resource = rdsl.fetch(path=path, uri=uri)
     res = rdsl.sync(resource)
-    cache.resources[resource] = resource
+    if res.is_success:
+        cache.resources[resource] = resource
 
-    txt = format(res, '--- ')
-    log.info(txt)
+    txt = format(res, '    ')
+    echo(txt.capitalize())
     sys.exit(0 if res else 2)
 
 
@@ -159,18 +153,37 @@ def update(key, path, uri):
             bail('Both path and uri must be specified')
         rs = [resources.get(path, uri)]
     else:
-        rs = cache.resources.values()
+        rs = list(cache.resources.values())
 
-    for resource in rs:
-        try:
-            res = rdsl.update(resource)
-        except AppError as e:
-            log.error(e)
-        else:
-            txt = format(res, '--- ')
-            log.info(txt)
+    # Prioritise uploaded resources, then all other resources.
+    priority = [
+        rdsl.is_repo,  # Avoid committing files which will be updated later
+        rdsl.is_uploaded,
+        lambda _: True,
+    ]
+
+    code = 0
+    for prioritized in priority:
+        i = 0
+        while i < len(rs):
+            if not prioritized(rs[i]):
+                i += 1
+                continue
+
+            try:
+                resource = rs.pop(i)
+                res = rdsl.update(resource)
+            except AppError as e:
+                err(e)
+                code = 1
+                continue
+
+            txt = format(res, '    ')
+            echo(txt.capitalize())
             if res:
                 cache.resources[resource] = resource
+
+    sys.exit(code)
 
 
 @cli.command()
@@ -206,8 +219,8 @@ def rm(key, local, force, no_remote):
         remote=not no_remote,
         force=force,
     )
-    txt = format(res, '--- ')
-    log.info(txt)
+    txt = format(res, '    ')
+    echo(txt.capitalize())
     sys.exit(0 if res else 2)
 
 
@@ -236,8 +249,8 @@ def mv(key, path):
     del cache.resources[key]
     cache.resources[r] = r
 
-    txt = format(res, '--- ')
-    log.info(txt)
+    txt = format(res, '    ')
+    echo(txt.capitalize())
     sys.exit(0 if res else 2)
 
 
@@ -409,11 +422,9 @@ def ugor_put(file, name, **metadata):
     from pathlib import Path
 
     try:
-        file, created = ugor.put(Path(file), name, **metadata)
+        ugor.put(Path(file), name, **metadata)
     except errors.UgorError412:
         bail('Precondition failed')
-    else:
-        log.info(f'Created {name}' if created else f'Updated {name}')
 
 
 @ugor.command('delete')
@@ -430,8 +441,6 @@ def ugor_delete(name, force, etag, modified):
         ugor.delete(name, force, etag, modified)
     except errors.UgorError412:
         bail('Precondition failed')
-    else:
-        log.info(f'Deleted {name}')
 
 
 @ugor.command('find')
@@ -491,7 +500,6 @@ def doctor():
     import config
     import history
     import os
-    import shutil
 
     w = 25
 
@@ -525,6 +533,12 @@ def doctor():
             echo(f'{bold(name):>{w}}={val}')
 
 
+@cli.command('help')
+def help_():
+    """Print detailed help."""
+    echo(HELP)
+
+
 # ------------------------------------------------------------------------------
 # UTILS
 
@@ -535,7 +549,7 @@ green = partial(style, fg='green')
 
 def bail(*args, **kwargs):
     """Print a message and exit."""
-    log.error(*args, **kwargs)
+    err(*args, **kwargs)
     sys.exit(1)
 
 
@@ -592,7 +606,7 @@ def echo_row(cols, widths, sep='  '):
 
 def show_usage_error(self, *args) -> None:
     """Modified version of click.exceptions.UsageError.show()
-    to show the error message with log.error()
+    to show the error message with error()
     """
 
     hint = ""
@@ -608,7 +622,29 @@ def show_usage_error(self, *args) -> None:
     if self.ctx is not None:
         echo(f"{self.ctx.get_usage()}\n{hint}", color=self.ctx.color, err=True)
 
-    log.error(self.format_message())
+    err(self.format_message())
 
 
 click.exceptions.UsageError.show = show_usage_error
+
+
+# ------------------------------------------------------------------------------
+# TEXT
+
+HELP = """
+# Files
+
+Files can be installed/uploaded/synced with Ugor. The file URIs look like this:
+
+    ugor://file/<name>
+
+# Archives
+
+Archives can be installed/uploaded/synced with Ugor. They are directories locally
+stored in an archive format in Ugor. The archive URIs look like this:
+
+    ugor://archive/<name>?format=<format>
+
+Where the format is one of 'zip', 'tar', 'gztar', 'bztar', 'xztar'.
+It defaults to 'xztar'.
+"""

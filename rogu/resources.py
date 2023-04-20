@@ -8,28 +8,30 @@ RESOURCE ACTIONS
 
  - Should not interact with the cache or history.
 """
+
 import shutil
+import hashlib
+import os
+import re
 from functools import cache
 from pathlib import Path
 from urllib.parse import urlparse
 
-import log
 import ugor
 from errors import *
-
+from ui import *
 
 __all__ = [
     'Archive',
     'File',
-    'Repo',
     'Resource',
+    'Release',
 
     'cache_key',
     'delete',
     'exists',
     'expand_key',
     'get',
-    'is_archive',
     'normalize_path',
 ]
 
@@ -110,7 +112,39 @@ class Resource:
         """
         if not self.path.exists():
             return ''
-        return str(self.path.stat().st_mtime_ns)
+
+        h = hashlib.sha1()
+
+        # If the resource is a file, just hash the file
+        if self.path.is_file():
+            h.update(self.path.read_bytes())
+            return h.hexdigest()
+
+        # Respect the first .gitignore encountered
+        gitignore = None
+
+        # If the resource is a directory, hash all files in the directory
+        for root, dirs, files in os.walk(self.path):
+            root = Path(root)
+
+            if '.git' in root.parts:
+                continue
+            if gitignore and root.name in gitignore:
+                continue
+
+            if not gitignore and '.gitignore' in files:
+                gitignore = root / '.gitignore'
+
+            for file in files:
+                if gitignore and file in gitignore:
+                    continue
+                p = root / file
+                rel = os.path.relpath(p, self.path)
+                h.update(p.read_bytes())
+                # Hash path to detect renames
+                h.update(rel.encode())
+
+        return h.hexdigest()
 
     @property
     def key(self):
@@ -121,6 +155,15 @@ class Resource:
     def short_key(self):
         """Short version of resource's cache key."""
         return self.key[:10]
+
+    @property
+    def name(self):
+        """The name of the resource. This is only intended to be a human-friendly
+        display name, and should not be used for anything else.
+
+        May be overridden by subclasses.
+        """
+        return self.path.name
 
     def encode(self, encoding='utf-8', **kwargs):
         """Encode the resources cache key into bytes.
@@ -136,7 +179,7 @@ class Resource:
     # DISPLAY
 
     def __str__(self):
-        return f'{self.class_name}:{self.short_key}'
+        return f'{self.short_key}:{self.name}'
 
     def __repr__(self):
         uri = self.uri
@@ -160,7 +203,7 @@ class Resource:
 # ------------------------------------------------------------------------------
 # ARCHIVE
 
-class Archive(Resource):  # TODO
+class Archive(Resource):
     """An archive object for RDSL.
 
     The archive path must be a directory.
@@ -172,20 +215,30 @@ class Archive(Resource):  # TODO
     last_etag = None
     last_modified = None
 
-    extensions = [
-        ext
-        for _, exts, _ in shutil.get_unpack_formats()
-        for ext in exts  # List comprehension flat-mapping
-    ]
+    format = 'xztar'
+
+    extensions = {
+        fmt: ext[0]
+        for fmt, ext, _ in shutil.get_unpack_formats()
+    }
 
     def __init__(self, path, uri, **kwargs):
-        log.debug(f'Creating Archive of {path=!r} {uri=!r}')
+        debug(f'Creating Archive of {path=!r} {uri=!r}')
         super().__init__(path, uri)
 
-        # Make sure the path is a directory
-        ex = self.path.exists()
-        if ex and not self.path.is_dir():
-            raise ValueError('Archive path must be a directory.')
+        parsed = urlparse(uri)
+        if m := re.search(r'format=(\w+)', parsed.query):
+            self.format = m.group(1)
+        if self.format not in self.extensions:
+            raise ValueError(f'Invalid archive format: {self.format}')
+
+    @property
+    def name(self):
+        return self.base_name + self.extensions[self.format]
+
+    @property
+    def base_name(self):
+        return urlparse(self.uri).path.lstrip('/')
 
     def refresh_metadata(self):
         """Refresh the metadata of the archive."""
@@ -193,10 +246,68 @@ class Archive(Resource):  # TODO
 
         # Handle deleted/moved files
         if not exists_ and self.category:
-            log.debug(f'{self.short_path} is deleted/moved - updating metadata.')
+            debug(f'{self.short_path} is deleted/moved - updating metadata.')
             self.category = Resource.DEFAULT
             self.last_etag = ''
             self.last_modified = ''
+
+    def install(self, mode=None, force=False, **kwargs):
+        """Install the archive to its path from the uri."""
+        import cache
+
+        if force:
+            debug(f'Forcing archive install.')
+
+        try:
+            file = ugor.get(
+                name=self.name,
+                etag=self.last_etag if not force else None,
+                modified=self.last_modified if not force else None,
+            )
+        except UgorError404 as e:
+            raise ActionBlocked(f'{self.uri!r} not found.') from e
+
+        if file is None:
+            raise ActionBlocked(f'{self.short_path} is already up-to-date.')
+
+        self.last_etag = file.last_etag
+        self.last_modified = file.last_modified
+
+        ftmp = cache.path(self.name)
+        ftmp.write_bytes(file.content)
+
+        self.path.parent.mkdir(parents=True, exist_ok=True)
+        shutil.unpack_archive(ftmp, self.path)
+        if mode:
+            self.path.chmod(mode)
+
+    def upload(self, force=False, **kwargs):
+        """Upload the archive to Ugor."""
+        import cache
+
+        if force:
+            debug(f'Forcing upload.')
+
+        if not self.path.exists():
+            raise ActionBlocked(f'{self.short_path} does not exist.')
+
+        arch = Path(shutil.make_archive(
+            cache.path(self.base_name),
+            self.format,
+            self.path,
+        ))
+
+        file = ugor.put(
+            obj=arch,
+            name=self.name,
+            force=force,
+            **{
+                'last_etag': self.last_etag,
+                'last_modified': self.last_modified,
+            }
+        )
+        self.last_etag = file.last_etag
+        self.last_modified = file.last_modified
 
 
 # ------------------------------------------------------------------------------
@@ -212,13 +323,13 @@ class File(Resource):
     last_modified = None
 
     def __init__(self, path, uri, **kwargs):
-        log.debug(f'Creating File of {path=!r} {uri=!r}')
+        debug(f'Creating File of {path=!r} {uri=!r}')
         super().__init__(path, uri)
 
-        # Make sure the path is a file
-        ex = self.path.exists()
-        if ex and not self.path.is_file():
-            raise ValueError('File path must be a file.')
+    @property
+    def name(self):
+        """The name of the file."""
+        return urlparse(self.uri).path.lstrip('/')
 
     def refresh_metadata(self):
         """Refresh the metadata of the file."""
@@ -226,30 +337,24 @@ class File(Resource):
 
         # Handle deleted/moved files
         if not exists_ and self.category:
-            log.debug(f'{self.short_path} is deleted/moved - updating metadata.')
+            debug(f'{self.short_path} is deleted/moved - updating metadata.')
             self.category = Resource.DEFAULT
             self.last_etag = None
             self.last_modified = None
 
     def install(self, mode=None, force=False, **kwargs):
-        """Install the file to its path from the uri.
-
-        :return: a ``Result``.
-        """
+        """Install the file to its path from the uri."""
         if force:
-            log.debug(f'Forcing install.')
-
-        if urlparse(self.uri).scheme != '':
-            raise ActionBlocked(f'Invalid Ugor URI: {self.uri!r}')
+            debug(f'Forcing file install.')
 
         try:
             file = ugor.get(
-                self.uri,
+                name=self.name,
                 etag=self.last_etag if not force else None,
                 modified=self.last_modified if not force else None,
             )
         except UgorError404 as e:
-            raise ActionBlocked(f'Ugor file {self.uri!r} not found') from e
+            raise ActionBlocked(f'{self.uri!r} not found') from e
 
         if file is None:
             raise ActionBlocked(f'{self.short_path} is already up-to-date')
@@ -267,21 +372,18 @@ class File(Resource):
         """Upload the file to Ugor."""
 
         if force:
-            log.debug(f'Forcing upload.')
+            debug(f'Forcing upload.')
 
         if not self.path.exists():
             raise ActionBlocked(f'{self.short_path} does not exist')
 
-        if urlparse(self.uri).scheme != '':
-            raise ActionBlocked(f'Invalid Ugor URI: {self.uri!r}')
-
         # Don't overwrite existing ugor files on first upload
-        if not self.last_etag and ugor.exists(self.uri) and not force:
-            raise ActionBlocked(f'ugor file {self.uri!r} already exists')
+        if not self.last_etag and ugor.exists(self.name) and not force:
+            raise ActionBlocked(f'ugor file {self.name!r} already exists')
 
-        file, created = ugor.put(
-            self.path.read_bytes(),
-            name=self.uri,
+        file = ugor.put(
+            obj=self.path,
+            name=self.name,
             force=force,
             **{
                 'last_etag': self.last_etag,
@@ -293,19 +395,60 @@ class File(Resource):
 
 
 # ------------------------------------------------------------------------------
-# REPO
+# RELEASE
 
-class Repo(Resource):  # TODO
-    """A git repo object for RDSL."""
+class Release(Resource):  # TODO
+    """A GitHub Release object for RDSL."""
+
+    last_etag = None
 
     def __init__(self, path, uri, **kwargs):
-        log.debug(f'Creating Repo of {path=!r} {uri=!r}')
+        debug(f'Creating Release of {path=!r} {uri=!r}')
         super().__init__(path, uri)
 
-        # Make sure the path is a directory
-        ex = self.path.exists()
-        if ex and not self.path.is_dir():
-            raise ValueError('Repo path must be a directory.')
+    @property
+    def github_url(self):
+        """The GitHub URL of the release."""
+        parsed = urlparse(self.uri)
+        repo, user = parsed.netloc.split('@')
+        file = parsed.path.lstrip('/')
+        return f'https://github.com/{user}/{repo}/releases/latest/download/{file}'
+
+    def install(self, **kwargs):
+        """Install the release to its path from the uri.
+
+        If the release file has an archive extension, it will be unpacked.
+        If it has gz, bz2, or xz extension it will be decompressed.
+        """
+        import cache
+        import requests
+
+        url = self.github_url
+        file = urlparse(url).path.lstrip('/')
+
+        # Check if the release has changed
+        r = requests.head(url, allow_redirects=True)
+        etag = r.headers.get('ETag')
+        if etag and self.last_etag == etag:
+            raise ActionBlocked(f'{self.short_path} is already up-to-date')
+        self.last_etag = etag
+
+        # Download the release
+        r = requests.get(url, allow_redirects=True)
+        try:
+            r.raise_for_status()
+        except requests.exceptions.HTTPError as e:
+            raise ActionBlocked(e)
+
+        # Unpack/Decompress and install the release
+        ftmp = cache.path(file)
+        with ftmp.open('wb') as f:
+            f.write(r.content)
+
+        try:
+            shutil.unpack_archive(ftmp, self.path)
+        except ValueError:
+            shutil.copy(ftmp, self.path)
 
 
 # ------------------------------------------------------------------------------
@@ -320,8 +463,6 @@ def cache_key(path, uri):
 
     Returns a hash string.
     """
-    import hashlib
-
     assert isinstance(path, (str, Path))
     assert isinstance(uri, str)
 
@@ -388,16 +529,6 @@ def delete(path, uri):
 # ------------------------------------------------------------------------------
 # UTILS
 
-def is_archive(path):
-    """Check if a path is an archive based on its extension."""
-    if isinstance(path, Path):
-        ext = ''.join(path.suffixes)
-        return ext in Archive.extensions
-    if isinstance(path, str):
-        return any(path.endswith(ext) for ext in Archive.extensions)
-    raise TypeError('path must be a string or a Path.')
-
-
 def normalize_path(path):
     """Normalize a path.
 
@@ -405,3 +536,45 @@ def normalize_path(path):
     """
     from os.path import expanduser, expandvars, realpath
     return realpath(expanduser(expandvars(path)))
+
+
+class Gitignore:
+
+    def __init__(self, path):
+        self.patterns = []
+
+        for line in open(path):
+            line = line.strip()
+            if not line or line.startswith('#'):
+                continue
+            self.patterns.append(line)
+
+    def __contains__(self, item):
+        from fnmatch import fnmatch
+        return any(fnmatch(item, pattern) for pattern in self.patterns)
+
+
+def unpack_gzip(path, dest):
+    """Unpack a gzip file to a destination."""
+    import gzip
+    with gzip.open(path, 'rb') as f:
+        Path(dest).write_bytes(f.read())
+
+
+def unpack_bzip2(path, dest):
+    """Unpack a bzip2 file to a destination."""
+    import bz2
+    with bz2.open(path, 'rb') as f:
+        Path(dest).write_bytes(f.read())
+
+
+def unpack_xz(path, dest):
+    """Unpack a xz file to a destination."""
+    import lzma
+    with lzma.open(path, 'rb') as f:
+        Path(dest).write_bytes(f.read())
+
+
+shutil.register_unpack_format('gzip', ['.gz'], unpack_gzip)
+shutil.register_unpack_format('bzip2', ['.bz2'], unpack_bzip2)
+shutil.register_unpack_format('xz', ['.xz'], unpack_xz)

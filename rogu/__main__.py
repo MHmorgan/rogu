@@ -18,12 +18,12 @@ sys.path.insert(1, f'{sys.path[0]}/thirdparty')
 
 import cli
 import errors
-import log
+import ui
 
 try:
     cli.cli()
 except errors.AppError as e:
-    log.error(e)
+    ui.err(e)
     if __debug__ and e.__cause__:
         from click import echo
         cause = e.__cause__

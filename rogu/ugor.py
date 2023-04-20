@@ -6,9 +6,8 @@ from functools import wraps
 
 import click
 import requests
-
-import log
 from errors import AppError, UgorError
+from ui import *
 
 __all__ = ['auth', 'get', 'put', 'delete', 'find', 'info', 'UgorFile']
 
@@ -49,7 +48,7 @@ def get(name, etag=None, modified=None):
         headers['If-Modified-Since'] = modified
 
     url = _url(name)
-    log.debug(f'GET {url!r}', *[f"{k}: {v!r}" for k, v in headers.items()])
+    debug(f'GET {url!r}', *[f"{k}: {v!r}" for k, v in headers.items()])
 
     r = requests.get(url, auth=auth(), headers=headers)
     r.raise_for_status()
@@ -59,89 +58,35 @@ def get(name, etag=None, modified=None):
 
 
 @_ugor_error
-def put(o, name='', use_pickle=False, force=False, **metadata):
+def put(obj, name, force=False, **metadata):
     """Upload something to the Ugor server.
 
-    If o is an UgorFile, it will be uploaded as is.
-    The name and metadata parameters is ignored.
+    If obj is a Path it will be uploaded as a file.
 
-    If o is a Path it will be uploaded as a file.
-    Default name is the path basename.
+    if obj is string/bytes it will be uploaded as the file content.
 
-    If o is string/bytes and name is falsy, then it is assumed to be a file path.
-    Default name is the path basename.
-
-    If o is string/bytes and name is truthy, then it is assumed to be the
-    content of a file.
-
-    If o is a dict or list, it will be serialized as JSON before uploading.
-    No default value for name.
-
-    If o is an object with a read() method, then it will be read and uploaded
-    as a file. Default name is o.name if it exists.
-
-    If o is anything else, it will be pickled and uploaded.
-    Default name is o.name if it exists.
-
-    If use_pickle is True, o will be pickled and uploaded regardless of the type.
-    No default value for name.
-
-    If force is True, the file will be uploaded even if the ETag or Last-Modified
-    preconditions fails.
+    If force is True, the file will be uploaded even if the ETag or
+    Last-Modified preconditions fails.
 
     The metadata will be passed along to the UgorFile constructor.
 
-    Returns a tuple (file, created), where file is the UgorFile that was uploaded,
-    with new ETag and Last-Modified values, and created is True if the file was
-    created, False if it was updated.
+    Returns the UgorFile that was uploaded with new ETag and Last-Modified
+    values.
 
     Raises UgorError412 if any of the preconditions fails.
-    Raises FileNotFoundError if o is a file path that doesn't exist.
+    Raises FileNotFoundError if obj is a file path that doesn't exist.
     """
-    import json
-    import pickle
     from pathlib import Path
-    from reprlib import repr  # Slightly prettier repr
 
-    # Create file object from o
-    if use_pickle:
-        log.debug(f'Ugor put file: forced pickle of', repr(o))
-        if not name:
-            raise ValueError('name must be given if use_pickle is True')
-        content = pickle.dumps(o)
-        metadata.setdefault('mime_type', 'application/octet-stream')
-        metadata.setdefault('encoding', 'pickle')
-        file = UgorFile.of(name, content, **metadata)
-    elif isinstance(o, UgorFile):
-        log.debug('Ugor put file: from UgorFile', repr(o))
-        file = o
-    elif isinstance(o, Path):
-        log.debug('Ugor put file: from path', repr(o))
-        file = UgorFile.of_file(name or o.name, o, **metadata)
-    elif isinstance(o, (str, bytes)) and not name:
-        log.debug('Ugor put file: from path (string/bytes)', repr(o))
-        file = UgorFile.of_file(Path(o).name, o, **metadata)
-    elif isinstance(o, (str, bytes)) and name:
-        log.debug('Ugor put file: with str/bytes content, named', repr(name))
-        file = UgorFile.of(name, o, **metadata)
-    elif isinstance(o, (dict, list)):
-        log.debug('Ugor put file: with JSON content, from dict/list', repr(o))
-        if not name:
-            raise ValueError('name must be given if o is a dict/list')
-        content = json.dumps(o).encode()
-        metadata.setdefault('mime_type', 'application/json')
-        file = UgorFile.of(name, content, **metadata)
+    # Create Ugor file object
+    if isinstance(obj, Path):
+        debug(f'Ugor put file: from path {obj!r}')
+        file = UgorFile.of_file(name or obj.name, obj, **metadata)
+    elif isinstance(obj, (str, bytes)):
+        debug(f'Ugor put file: with str/bytes content, named {name!r}')
+        file = UgorFile.of(name, obj, **metadata)
     else:
-        if hasattr(o, 'read') and callable(o.read):
-            log.debug('Ugor put file: with content read from', repr(o))
-            content = o.read()
-        else:
-            log.debug('Ugor put file: with pickled content from', repr(o))
-            content = pickle.dumps(o)
-        if name := (getattr(o, 'name', '') or name):
-            file = UgorFile.of(name, content, **metadata)
-        else:
-            raise ValueError('name must be given if o has no name')
+        raise TypeError(f'obj must be a Path, str or bytes, not {type(obj)}')
 
     headers = file.headers()
     if file.last_etag and not force:
@@ -150,7 +95,7 @@ def put(o, name='', use_pickle=False, force=False, **metadata):
         headers['If-Unmodified-Since'] = file.last_modified
 
     url = _url(file.name)
-    log.debug('PUT', url, *[f"{k}: {v!r}" for k, v in headers.items()])
+    debug('PUT', url, *[f"{k}: {v!r}" for k, v in headers.items()])
     r = requests.put(url, auth=auth(), headers=headers, data=file.content)
     r.raise_for_status()
 
@@ -161,10 +106,10 @@ def put(o, name='', use_pickle=False, force=False, **metadata):
         raise AppError(f'Ugor server did not return ETag and/or Last-Modified headers') from e
 
     if r.status_code == 201:
-        log.debug('Ugor put: Created', file.name)
+        debug('Ugor put: Created', file.name)
     elif r.status_code == 200:
-        log.debug('Ugor put: Updated', file.name)
-    return file, r.status_code == 201
+        debug('Ugor put: Updated', file.name)
+    return file
 
 
 @_ugor_error
@@ -179,7 +124,7 @@ def delete(name, force=False, etag=None, modified=None):
         headers['If-Unmodified-Since'] = modified
 
     url = _url(name)
-    log.debug('DELETE', url, *[f"{k}: {v!r}" for k, v in headers.items()])
+    debug('DELETE', url, *[f"{k}: {v!r}" for k, v in headers.items()])
     r = requests.delete(url, auth=auth(), headers=headers)
     r.raise_for_status()
 
@@ -190,7 +135,7 @@ def find(**params):  # TODO
     from config import ugor_url
 
     params = {k: v for k, v in params.items() if v is not None}
-    log.debug('FIND', ugor_url, params)
+    debug('FIND', ugor_url, params)
     r = requests.request('FIND', ugor_url, auth=auth(), json=params)
     r.raise_for_status()
     return r.json()
@@ -201,7 +146,7 @@ def info():
     """Get information about the Ugor server"""
     from config import ugor_url
 
-    log.debug('INFO', ugor_url)
+    debug('INFO', ugor_url)
     r = requests.request('INFO', ugor_url, auth=auth())
     r.raise_for_status()
     return r.json()
@@ -211,7 +156,7 @@ def info():
 def exists(name):
     """Check if a file exists on the Ugor server"""
     url = _url(name)
-    log.debug('HEAD', url)
+    debug('HEAD', url)
     r = requests.head(url, auth=auth())
     if r.status_code == 404:
         return False

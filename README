@@ -20,8 +20,6 @@ Run a specific test(s):
 
 Test names:
 
- 	install
- 	sync
- 	ugor
- 	update
- 	upload
+	ugor
+	file
+	archive
