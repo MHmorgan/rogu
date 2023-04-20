@@ -8,10 +8,13 @@ printed to stderr. This allows the user to redirect the
 output to a file or pipe it to another program.
 """
 
-from click import secho
+from click import echo, secho
 
 
 __all__ = ['err', 'warn', 'good', 'bad', 'debug']
+
+
+VERBOSE = False
 
 
 def err(*args, sep=' ', **kwargs):
@@ -35,7 +38,13 @@ def debug(*args, sep=' ', **kwargs):
         s = sep.join(str(m) for m in args)
         kwargs.setdefault('dim', True)
         kwargs.setdefault('err', True)
-        secho(s, **kwargs)
+        secho('[*] ' + s, **kwargs)
+
+
+def verbose(*args, sep=' ', **kwargs):
+    if VERBOSE:
+        s = sep.join(str(m) for m in args)
+        echo('[*] ' + s, **kwargs)
 
 
 def good(*args, sep=' ', **kwargs):
