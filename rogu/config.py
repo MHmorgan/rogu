@@ -19,12 +19,6 @@ __all__ = [
 
     'ugor_url',
     'app_dir',
-    'bin_dir',
-    'git_branch',
-    'git_remote',
-    'git_user',
-    'git_name',
-    'git_email',
 ]
 
 version = '0.1'
@@ -32,13 +26,6 @@ version = '0.1'
 defaults = {
     'ugor_url': 'https://ugor.hirth.dev',
     'app_dir': click.get_app_dir('rogu', force_posix=True),
-    'bin_dir': str(Path.home() / 'bin'),
-
-    'git_branch': 'main',
-    'git_remote': None,
-    'git_user': None,
-    'git_name': None,
-    'git_email': None,
 }
 
 env_vars = {
