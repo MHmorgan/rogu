@@ -11,7 +11,7 @@ output to a file or pipe it to another program.
 from click import echo, secho
 
 
-__all__ = ['err', 'warn', 'good', 'bad', 'debug']
+__all__ = ['err', 'warn', 'good', 'bad', 'debug', 'verbose']
 
 
 VERBOSE = False
@@ -42,7 +42,7 @@ def debug(*args, sep=' ', **kwargs):
 
 
 def verbose(*args, sep=' ', **kwargs):
-    if VERBOSE:
+    if VERBOSE or __debug__:
         s = sep.join(str(m) for m in args)
         echo('[*] ' + s, **kwargs)
 

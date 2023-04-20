@@ -1,4 +1,4 @@
-"""types defines the types used in RDSL.
+"""The resource objects - the core of Rogu.
 
 RESOURCE ACTIONS
 
@@ -9,14 +9,17 @@ RESOURCE ACTIONS
  - Should not interact with the cache or history.
 """
 
+import abc
 import shutil
 import hashlib
 import os
 import re
 from functools import cache
 from pathlib import Path
+from typing import Union, Optional
 from urllib.parse import urlparse
 
+import arrow
 import ugor
 from errors import *
 from ui import *
@@ -28,15 +31,45 @@ __all__ = [
     'Release',
 
     'cache_key',
-    'delete',
-    'exists',
     'expand_key',
     'get',
     'normalize_path',
 ]
 
 
-class Resource:
+class Resource(abc.ABC):
+    """Resource is the base class for all resources, the core of Rogu.
+
+    All resources have a ``path`` and an ``uri``, which uniquely identifies
+    the resource.
+
+    The behavior of resources are heavily reliant on duck-typing, and which
+    actions a resource supports is determined by the presence of the methods
+    for an action. The following methods are supported:
+
+    ``install(force)``
+        install the resource.
+
+    ``upload(force)``
+        upload the resource.
+
+    ``delete(force)``
+        delete the resource.
+
+    ``divergence()``
+        returns an integer indicating the divergence between the path and uri:
+        0 - path and uri content are identical;
+        1 - path is newer;
+        2 - path is newer but uri has diverged;
+        -1 - uri is newer;
+        -2 - uri is newer but path has diverged.
+
+    ``refresh_metadata()``
+        refresh the metadata of the resource.
+
+    :param path: the path to the resource.
+    :param uri: the uri of the resource.
+    """
     path: Path
     uri: str
 
@@ -45,7 +78,7 @@ class Resource:
     DEFAULT = 0
 
     # The install category indicates that a resource has been installed from
-    # a remote source, and during syncing the local version should be updated.
+    # the uri source, and during syncing the path content should be updated.
     INSTALL = 1 << 0
 
     # The upload category indicates that a resource has been uploaded to Ugor
@@ -90,19 +123,19 @@ class Resource:
         return False
 
     @property
-    def short_path(self):
+    def short_path(self) -> str:
         """Path as a string with home converted to ~ """
         home = str(Path.home())
         return str(self.path).replace(home, '~')
 
     @property
-    def class_name(self):
+    def class_name(self) -> str:
         """Class name."""
         return self.__class__.__name__
 
     @property
-    def local_hash(self):
-        """Return a hash string of the resource locally.
+    def path_hash(self) -> str:
+        """Hash string of the resource locally.
 
         This is used to determine if the resource has changed locally.
         """
@@ -143,6 +176,44 @@ class Resource:
         return h.hexdigest()
 
     @property
+    def path_modified(self) -> arrow.Arrow:
+        """The time the resource was last modified locally.
+
+        If the resource is a directory, the last modified time of any file
+        in the directory is returned.
+        """
+
+        if not self.path.exists():
+            return arrow.get(0)
+
+        if self.path.is_file():
+            return arrow.get(self.path.stat().st_mtime)
+
+        # Respect the first .gitignore encountered
+        gitignore = None
+        time = arrow.get(0)
+
+        # Find the last modified time of any file in the directory
+        for root, dirs, files in os.walk(self.path):
+            root = Path(root)
+
+            if '.git' in root.parts:
+                continue
+            if gitignore and root.name in gitignore:
+                continue
+
+            if not gitignore and '.gitignore' in files:
+                gitignore = root / '.gitignore'
+
+            for file in files:
+                if gitignore and file in gitignore:
+                    continue
+                p = root / file
+                time = max(time, arrow.get(p.stat().st_mtime))
+
+        return time
+
+    @property
     def key(self):
         """Resource's cache key."""
         return cache_key(path=self.path, uri=self.uri)
@@ -171,7 +242,6 @@ class Resource:
         """
         return self.key.encode(encoding=encoding)
 
-    # ------------------------------------------------------
     # DISPLAY
 
     def __str__(self):
@@ -192,14 +262,120 @@ class Resource:
         if format_spec == 'C':
             return self.class_name
         if format_spec == 'H':
-            return self.local_hash
+            return self.path_hash
         return str(self)
+
+
+# ------------------------------------------------------------------------------
+# UGOR RESOURCE
+
+class _UgorResource(Resource):
+    """A base resource for all resources which install or upload to Ugor.
+
+    All subclasses must make sure ``self.name`` is set to the name of the
+    Ugor file.
+    """
+    last_etag = None
+    last_modified = None
+    description = None  # TODO use this
+
+    def ugor_install(self, force: bool) -> Optional[bytes]:
+        """Download this resource from Ugor.
+
+        Handles etag and modified logic.
+
+        :returns: the file content or None if it's up-to-date.
+        """
+        file = ugor.get(
+            name=self.name,
+            etag=self.last_etag if not force else None,
+            modified=self.last_modified if not force else None,
+        )
+
+        if file is None:
+            verbose(f'{self} is up-to-date')
+            return None
+
+        self.last_etag = file.last_etag
+        self.last_modified = file.last_modified
+        return file.content
+
+    def ugor_upload(self, obj: Union[Path, bytes, str], force: bool):
+        """Upload this resource to Ugor."""
+        file = ugor.put(
+            obj=obj,
+            name=self.name,
+            force=force,
+            **{
+                'last_etag': self.last_etag,
+                'last_modified': self.last_modified,
+                'description': self.description,
+                'tag2': 'Rogu',
+                'data2': self.path_hash,
+            }
+        )
+        self.last_etag = file.last_etag
+        self.last_modified = file.last_modified
+
+    def divergence(self) -> int:
+        """Return the divergence between the path and uri content.
+
+        :returns: an ``int`` indicating the divergence:
+            0 - path and uri content are identical;
+            1 - path is newer;
+            2 - path is newer but uri has diverged;
+            -1 - uri is newer;
+            -2 - uri is newer but path has diverged.
+        """
+        try:
+            header = ugor.get_header(self.name)
+        except UgorError404:
+            # If path exists it is newest
+            return 1 if self.path.exists() else 0
+
+        # If path does not exist, uri is newest
+        if not self.path.exists():
+            return -1
+
+        old_etag = self.last_etag  # ETag at last install or upload
+        new_etag = header.etag
+        old_hash = header.data2  # Hash at last upload
+        new_hash = self.path_hash
+        uri_mod = arrow.get(header.modified)
+        path_mod = self.path_modified
+
+        # At this point we know both path and uri exist
+
+        is_uploaded = old_hash is not None
+        is_new = old_etag is None
+        has_local_changes = old_hash != new_hash
+        has_remote_changes = old_etag != new_etag
+
+        # If this is a new resource, but both local and remote exist
+        # they have diverged.
+        if is_new:
+            return -2 if uri_mod > path_mod else 2
+
+        # If a resource has never been uploaded we don't know the last local
+        # hash, so we can not know if it has diverged.
+        # We can only assume that these resources will only ever be installed
+        # from Ugor, and never uploaded.
+        if not is_uploaded:
+            return -1 if has_remote_changes else 0
+
+        if has_local_changes and has_remote_changes:
+            return -2 if uri_mod > path_mod else 2
+        if has_local_changes and not has_remote_changes:
+            return 1
+        if not has_local_changes and has_remote_changes:
+            return -1
+        return 0
 
 
 # ------------------------------------------------------------------------------
 # ARCHIVE
 
-class Archive(Resource):
+class Archive(_UgorResource):
     """An archive object for RDSL.
 
     The archive path must be a directory.
@@ -208,9 +384,6 @@ class Archive(Resource):
     File functionality.
     """
 
-    last_etag = None
-    last_modified = None
-
     format = 'xztar'
 
     extensions = {
@@ -218,7 +391,7 @@ class Archive(Resource):
         for fmt, ext, _ in shutil.get_unpack_formats()
     }
 
-    def __init__(self, path, uri, **kwargs):
+    def __init__(self, path, uri):
         debug(f'Creating Archive of {path=!r} {uri=!r}')
         super().__init__(path, uri)
 
@@ -230,14 +403,18 @@ class Archive(Resource):
 
     @property
     def name(self):
+        """Archive name with extension. This is the Ugor name."""
         return self.base_name + self.extensions[self.format]
 
     @property
     def base_name(self):
+        """Archive name without archive extension."""
         return urlparse(self.uri).path.lstrip('/')
 
+    # RESOURCE ACTIONS
+
     def refresh_metadata(self):
-        """Refresh the metadata of the archive."""
+        """Refresh the etag and modified values of the archive."""
         exists_ = self.path.exists()
 
         # Handle deleted/moved files
@@ -247,84 +424,52 @@ class Archive(Resource):
             self.last_etag = ''
             self.last_modified = ''
 
-    def install(self, force=False, **kwargs):
+    def install(self, force: bool = False):
         """Install the archive to its path from the uri."""
         import cache
 
-        if force:
-            debug(f'Forcing archive install.')
-
-        try:
-            file = ugor.get(
-                name=self.name,
-                etag=self.last_etag if not force else None,
-                modified=self.last_modified if not force else None,
-            )
-        except UgorError404 as e:
-            raise ActionBlocked(f'{self.uri!r} not found.') from e
-
-        if file is None:
-            raise ActionBlocked(f'{self.short_path} is already up-to-date.')
-
-        self.last_etag = file.last_etag
-        self.last_modified = file.last_modified
+        content = self.ugor_install(force)
+        if content is None:
+            return
 
         ftmp = cache.path(self.name)
-        ftmp.write_bytes(file.content)
+        ftmp.write_bytes(content)
 
         self.path.parent.mkdir(parents=True, exist_ok=True)
         shutil.unpack_archive(ftmp, self.path)
-        if mode:
-            self.path.chmod(mode)
 
-    def upload(self, force=False, **kwargs):
+    def upload(self, force: bool = False):
         """Upload the archive to Ugor."""
         import cache
-
-        if force:
-            debug(f'Forcing upload.')
 
         if not self.path.exists():
             raise ActionBlocked(f'{self.short_path} does not exist.')
 
-        arch = Path(shutil.make_archive(
-            cache.path(self.base_name),
-            self.format,
-            self.path,
+        arch = Path(pack_archive(
+            dst=cache.path(self.base_name),
+            src=self.path,
+            fmt=self.format,
         ))
 
-        file = ugor.put(
-            obj=arch,
-            name=self.name,
-            force=force,
-            **{
-                'last_etag': self.last_etag,
-                'last_modified': self.last_modified,
-            }
-        )
-        self.last_etag = file.last_etag
-        self.last_modified = file.last_modified
+        self.ugor_upload(arch, force)
 
 
 # ------------------------------------------------------------------------------
 # FILE
 
-class File(Resource):
+class File(_UgorResource):
     """A custom file object for RDSL.
 
     The file path must be a file.
     """
 
-    last_etag = None
-    last_modified = None
-
-    def __init__(self, path, uri, **kwargs):
+    def __init__(self, path, uri):
         debug(f'Creating File of {path=!r} {uri=!r}')
         super().__init__(path, uri)
 
     @property
     def name(self):
-        """The name of the file."""
+        """The Ugor file name."""
         return urlparse(self.uri).path.lstrip('/')
 
     def refresh_metadata(self):
@@ -338,33 +483,17 @@ class File(Resource):
             self.last_etag = None
             self.last_modified = None
 
-    def install(self, mode=None, force=False, **kwargs):
+    def install(self, force: bool = False):
         """Install the file to its path from the uri."""
-        if force:
-            debug(f'Forcing file install.')
-
-        try:
-            file = ugor.get(
-                name=self.name,
-                etag=self.last_etag if not force else None,
-                modified=self.last_modified if not force else None,
-            )
-        except UgorError404 as e:
-            raise ActionBlocked(f'{self.uri!r} not found') from e
-
-        if file is None:
-            raise ActionBlocked(f'{self.short_path} is already up-to-date')
-
-        self.last_etag = file.last_etag
-        self.last_modified = file.last_modified
+        content = self.ugor_install(force)
+        if content is None:
+            return
 
         if not self.path.parent.exists():
             self.path.parent.mkdir(parents=True)
-        self.path.write_bytes(file.content)
-        if mode:
-            self.path.chmod(mode)
+        self.path.write_bytes(content)
 
-    def upload(self, force=False, **kwargs):
+    def upload(self, force: bool = False):
         """Upload the file to Ugor."""
 
         if force:
@@ -373,21 +502,7 @@ class File(Resource):
         if not self.path.exists():
             raise ActionBlocked(f'{self.short_path} does not exist')
 
-        # Don't overwrite existing ugor files on first upload
-        if not self.last_etag and ugor.exists(self.name) and not force:
-            raise ActionBlocked(f'ugor file {self.name!r} already exists')
-
-        file = ugor.put(
-            obj=self.path,
-            name=self.name,
-            force=force,
-            **{
-                'last_etag': self.last_etag,
-                'last_modified': self.last_modified,
-            }
-        )
-        self.last_etag = file.last_etag
-        self.last_modified = file.last_modified
+        self.ugor_upload(self.path, force)
 
 
 # ------------------------------------------------------------------------------
@@ -398,7 +513,7 @@ class Release(Resource):
 
     last_etag = None
 
-    def __init__(self, path, uri, **kwargs):
+    def __init__(self, path, uri):
         debug(f'Creating Release of {path=!r} {uri=!r}')
         super().__init__(path, uri)
 
@@ -410,7 +525,35 @@ class Release(Resource):
         file = parsed.path.lstrip('/')
         return f'https://github.com/{user}/{repo}/releases/latest/download/{file}'
 
-    def install(self, mode=None, **kwargs):
+    def divergence(self):
+        """Return the divergence of the release.
+
+        Returns:
+            int: 0 if the release is up-to-date, 1 if the release is newer,
+                -1 if the release is older, -2 if the release is newer and
+                the local file is newer, and 2 if the release is older and
+                the local file is older.
+        """
+        # Check if the release has changed
+        import requests
+
+        # A release can only ever be installed, and are not expected to be
+        # modified locally. If it doesn't exist or haven't been installed
+        # previously, the remote must be newest.
+        if not self.path.exists() or not self.last_etag:
+            return -1
+
+        r = requests.head(self.github_url, allow_redirects=True)
+        etag = r.headers.get('ETag')
+
+        # If the ETag isn't available we must always assume the release
+        # has changed.
+        if etag is None:
+            return -1
+
+        return 0 if self.last_etag == etag else -1
+
+    def install(self, force=False):
         """Install the release to its path from the uri.
 
         If the release file has an archive extension, it will be unpacked.
@@ -422,12 +565,10 @@ class Release(Resource):
         url = self.github_url
         file = urlparse(url).path.lstrip('/')
 
-        # Check if the release has changed
-        r = requests.head(url, allow_redirects=True)
-        etag = r.headers.get('ETag')
-        if etag and self.last_etag == etag:
-            raise ActionBlocked(f'{self.short_path} is already up-to-date')
-        self.last_etag = etag
+        if self.path.exists():
+            mode = self.path.stat().st_mode
+        else:
+            mode = None
 
         # Download the release
         r = requests.get(url, allow_redirects=True)
@@ -435,6 +576,7 @@ class Release(Resource):
             r.raise_for_status()
         except requests.exceptions.HTTPError as e:
             raise ActionBlocked(e)
+        self.last_etag = r.headers.get('ETag')
 
         # Unpack/Decompress and install the release
         ftmp = cache.path(file)
@@ -449,20 +591,20 @@ class Release(Resource):
             shutil.unpack_archive(ftmp, self.path)
         except shutil.ReadError:
             shutil.copy(ftmp, self.path)
+        else:
+            if mode is not None:
+                self.path.chmod(mode)
         finally:
             shutil.unregister_unpack_format('gzip')
             shutil.unregister_unpack_format('bzip2')
             shutil.unregister_unpack_format('xz')
-
-        if mode:
-            self.path.chmod(mode)
 
 
 # ------------------------------------------------------------------------------
 # CACHE INTERFACE
 
 @cache
-def cache_key(path, uri):
+def cache_key(path: Union[Path, str], uri: str) -> str:
     """Get a cache key for a resource.
 
     uri must be a string.
@@ -490,7 +632,7 @@ def cache_key(path, uri):
     return f'{x}{y}{dig}'
 
 
-def expand_key(key):
+def expand_key(key: str) -> str:
     """Expand a partial cache key to a full key.
 
     Unless exactly one match is found, it raises ValueError.
@@ -504,13 +646,7 @@ def expand_key(key):
     return matches.pop()
 
 
-def exists(path, uri):
-    """Check if a resource exists in the cache."""
-    from cache import resources
-    return cache_key(path=path, uri=uri) in resources
-
-
-def get(path, uri):
+def get(path: Union[Path, str], uri: str) -> Resource:
     """Get a resource from the cache.
 
     If safe is False it raises ResourceNotFound if the resource is not found,
@@ -524,19 +660,10 @@ def get(path, uri):
     raise ResourceNotFound(path, uri)
 
 
-def delete(path, uri):
-    """Delete a resource from the cache."""
-    from cache import resources
-
-    key = cache_key(path=path, uri=uri)
-    if key in resources:
-        del resources[key]
-
-
 # ------------------------------------------------------------------------------
 # UTILS
 
-def normalize_path(path):
+def normalize_path(path: Union[Path, str]) -> str:
     """Normalize a path.
 
     Returns a canonical path with expanded user and environment variables.
@@ -547,7 +674,7 @@ def normalize_path(path):
 
 class Gitignore:
 
-    def __init__(self, path):
+    def __init__(self, path: Union[Path, str]):
         self.patterns = []
 
         for line in open(path):
@@ -556,7 +683,7 @@ class Gitignore:
                 continue
             self.patterns.append(line)
 
-    def __contains__(self, item):
+    def __contains__(self, item: str):
         from fnmatch import fnmatch
         return any(fnmatch(item, pattern) for pattern in self.patterns)
 
@@ -581,3 +708,19 @@ def unpack_xz(path, dest):
     with lzma.open(path, 'rb') as f:
         Path(dest).write_bytes(f.read())
 
+
+@cache
+def pack_archive(dst, src, fmt):
+    """Pack a directory to a destination.
+
+    This is a wrapper around shutil.make_archive that caches the result.
+    The goal of this function is to avoid repacking the same directory
+    multiple times during a single run.
+
+    :returns str: The path to the archive.
+    """
+    return shutil.make_archive(
+        base_name=dst,
+        format=fmt,
+        root_dir=src,
+    )

@@ -17,16 +17,11 @@ if sys.version_info < (3, 8):
 sys.path.insert(1, f'{sys.path[0]}/thirdparty')
 
 import cli
-import errors
 import ui
+from errors import AppError
 
 try:
     cli.cli()
-except errors.AppError as e:
+except AppError as e:
     ui.err(e)
-    if __debug__ and e.__cause__:
-        from click import echo
-        cause = e.__cause__
-        name = cause.__class__.__name__
-        echo(f'CAUSE: {name}: {cause}', err=True)
     sys.exit(1)

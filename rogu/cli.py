@@ -5,6 +5,7 @@ from functools import partial
 # NOTE Only import the bare minimum here, to keep the startup time low.
 import click
 from click import echo, style
+from errors import *
 from ui import *
 
 
@@ -49,7 +50,7 @@ def put(name):
 @cli.command()
 @click.argument('path')
 @click.argument('uri')
-@click.option('-m', '--mode', type=int, default=0o644, help='File mode.')
+@click.option('-m', '--mode', type=int, help='File mode.')
 @click.option('-f', '--force', is_flag=True, help='Overwrite existing files.')
 def install(path, uri, mode, force):
     """Install a resource. The resource is fetched from URI and written to PATH.
@@ -63,14 +64,15 @@ def install(path, uri, mode, force):
     """
     import rdsl
 
-    resource = rdsl.fetch(path=path, uri=uri, mode=mode)
-    res = rdsl.install(resource, force=force)
-    if res.is_success:
+    try:
+        resource = rdsl.fetch(path=path, uri=uri)
+        rdsl.install(resource, force=force)
+    except ActionBlocked as e:
+        warn(e)
+    else:
         rdsl.store(resource)
-
-    txt = format(res, '    ')
-    echo(txt.capitalize())
-    sys.exit(0 if res else 2)
+        if mode:
+            resource.path.chmod(mode)
 
 
 @cli.command()
@@ -89,20 +91,19 @@ def upload(path, uri, force):
     """
     import rdsl
 
-    resource = rdsl.fetch(path=path, uri=uri)
-    res = rdsl.upload(resource, force=force)
-    if res.is_success:
+    try:
+        resource = rdsl.fetch(path=path, uri=uri)
+        rdsl.upload(resource, force=force)
+    except ActionBlocked as e:
+        warn(e)
+    else:
         rdsl.store(resource)
-
-    txt = format(res, '    ')
-    echo(txt.capitalize())
-    sys.exit(0 if res else 2)
 
 
 @cli.command()
 @click.argument('path')
 @click.argument('uri')
-@click.option('-m', '--mode', type=int, default=0o644, help='File mode.')
+@click.option('-m', '--mode', type=int, help='File mode.')
 def sync(path, uri, mode):
     """Synchronise a resource. This is like a combination of
     update and install.
@@ -116,14 +117,15 @@ def sync(path, uri, mode):
     """
     import rdsl
 
-    resource = rdsl.fetch(path=path, uri=uri, mode=mode)
-    res = rdsl.sync(resource)
-    if res.is_success:
+    try:
+        resource = rdsl.fetch(path=path, uri=uri)
+        rdsl.sync(resource)
+    except ActionBlocked as e:
+        warn(e)
+    else:
         rdsl.store(resource)
-
-    txt = format(res, '    ')
-    echo(txt.capitalize())
-    sys.exit(0 if res else 2)
+        if mode:
+            resource.path.chmod(mode)
 
 
 @cli.command()
@@ -172,15 +174,13 @@ def update(key, path, uri):
 
             try:
                 resource = rs.pop(i)
-                res = rdsl.update(resource)
+                rdsl.update(resource)
+            except ActionBlocked as e:
+                warn(e)
             except AppError as e:
                 err(e)
                 code = 1
-                continue
-
-            txt = format(res, '    ')
-            echo(txt.capitalize())
-            if res:
+            else:
                 rdsl.store(resource)
 
     sys.exit(code)
@@ -190,8 +190,8 @@ def update(key, path, uri):
 @click.argument('key')
 @click.option('-l', '--local', is_flag=True, help='Delete the local copy of the resource.')
 @click.option('-f', '--force', is_flag=True, help='Force removal of the resource.')
-@click.option('-R', '--no-remote', is_flag=True, help='Do not remove Ugor file from server.')
-def rm(key, local, force, no_remote):
+@click.option('-R', '--remote', is_flag=True, help='Remove Ugor file from server.')
+def rm(key, local, force, remote):
     """Remove a resource.
 
     KEY is the key of the resource to remove.
@@ -213,15 +213,15 @@ def rm(key, local, force, no_remote):
     except ValueError:
         bail('Resource not found')
 
-    res = rdsl.delete(
-        cache.resources[key],
-        local=local,
-        remote=not no_remote,
-        force=force,
-    )
-    txt = format(res, '    ')
-    echo(txt.capitalize())
-    sys.exit(0 if res else 2)
+    try:
+        rdsl.delete(
+            cache.resources[key],
+            local=local,
+            remote=remote,
+            force=force,
+        )
+    except ActionBlocked as e:
+        warn(e)
 
 
 @cli.command()
@@ -244,14 +244,11 @@ def mv(key, path):
     except ValueError:
         bail('Resource not found')
 
-    r = cache.resources[key]
-    res = rdsl.move(r, path)
-    del cache.resources[key]
-    cache.resources[r] = r
-
-    txt = format(res, '    ')
-    echo(txt.capitalize())
-    sys.exit(0 if res else 2)
+    try:
+        r = cache.resources[key]
+        rdsl.move(r, path)
+    except ActionBlocked as e:
+        warn(e)
 
 
 @cli.command()
@@ -294,58 +291,6 @@ def resources(key):
 
 
 # ------------------------------------------------------------------------------
-# HISTORY
-
-@cli.command()
-@click.option('-n', type=int, default=20, help='Number of entries to show (-1 means everything).')
-def history(n):
-    """Show the resource action history."""
-    import history
-    import shutil
-    import textwrap
-
-    entries = [
-        entry
-        for i, entry in enumerate(history.entries())
-        if i < n or n == -1
-    ]
-    fmt = 'YYYY-MM-DD HH:mm:ss'
-    headers = ['TIME', 'ACTION', 'NAME', 'PATH', 'MESSAGE']
-
-    if not entries:
-        echo('No history to show')
-        return
-
-    widths = [
-        max(len(e.timestamp.format(fmt)) for e in entries),
-        max(len(e.action) for e in entries),
-        max(len(e.name) for e in entries),
-        max(len(e.path) for e in entries),
-    ]
-
-    # Calculate left-over width for message column.
-    w, _ = shutil.get_terminal_size()
-    msg_width = w - sum(widths) - 2 * len(widths)
-
-    echo_row(headers, widths)
-    for entry in entries:
-        color = green if entry.ok else red
-        msg = textwrap.shorten(
-            entry.message,
-            msg_width,
-            break_long_words=True,
-        )
-        cols = [
-            entry.timestamp.format(fmt),
-            entry.action,
-            entry.name,
-            entry.path,
-            color(msg),
-        ]
-        echo_row(cols, widths)
-
-
-# ------------------------------------------------------------------------------
 # UGOR
 
 @cli.group()
@@ -380,12 +325,14 @@ def ugor_get(name):
     Should not be used for downloading or installing files.
     """
     import ugor
-    import errors
+    from requests import HTTPError
 
     try:
         file = ugor.get(name)
-    except errors.UgorError404:
-        bail('File not found')
+    except HTTPError as e:
+        if e.response.status_code == 404:
+            bail('File not found')
+        raise AppError(f'getting file: {e}')
     else:
         echo_ugor_file(file)
 
@@ -418,13 +365,15 @@ def ugor_put(file, name, **metadata):
     Should not be used for normal uploading.
     """
     import ugor
-    import errors
     from pathlib import Path
+    from requests import HTTPError
 
     try:
         ugor.put(Path(file), name, **metadata)
-    except errors.UgorError412:
-        bail('Precondition failed')
+    except HTTPError as e:
+        if e.response.status_code == 412:
+            bail('Precondition failed')
+        raise AppError(f'uploading file: {e}')
 
 
 @ugor.command('delete')
@@ -435,12 +384,14 @@ def ugor_put(file, name, **metadata):
 def ugor_delete(name, force, etag, modified):
     """Delete file NAME from the Ugor server."""
     import ugor
-    import errors
+    from requests import HTTPError
 
     try:
         ugor.delete(name, force, etag, modified)
-    except errors.UgorError412:
-        bail('Precondition failed')
+    except HTTPError as e:
+        if e.response.status_code == 412:
+            bail('Precondition failed')
+        raise AppError(f'deleting file: {e}')
 
 
 @ugor.command('find')
@@ -461,26 +412,30 @@ def ugor_delete(name, force, etag, modified):
 def ugor_find(**params):
     """Find files on the Ugor server."""
     import ugor
-    import errors
+    from requests import HTTPError
     from pprint import pformat
     try:
         echo(pformat(ugor.find(**params)))
-    except errors.UgorError440:
-        bail('No matches')
+    except HTTPError as e:
+        if e.response.status_code == 440:
+            bail('No matches')
+        raise AppError(f'finding files: {e}')
 
 
 @ugor.command('list')
 def ugor_list():
     """List files on the Ugor server."""
     import ugor
-    import errors
+    from requests import HTTPError
 
     try:
         names = ugor.find()
         for name in sorted(names):
             echo(name)
-    except errors.UgorError440:
-        bail('No matches')
+    except HTTPError as e:
+        if e.response.status_code == 440:
+            bail('No matches')
+        raise AppError(f'finding files: {e}')
 
 
 # ------------------------------------------------------------------------------
@@ -511,7 +466,6 @@ def doctor():
     echo()
     files = [
         ('App directory', config.app_dir),
-        ('History file', history.history_file),
     ]
     for label, path in files:
         echo(f'{bold(label):>{w}} {path}')

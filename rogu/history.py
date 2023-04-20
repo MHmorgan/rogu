@@ -117,7 +117,7 @@ def record(action, resource, ok, message):
         uri=resource.uri,
         key=resource.key,
         short_key=resource.short_key,
-        local_hash=resource.local_hash,
+        local_hash=resource.path_hash,
         message=message
     )
 

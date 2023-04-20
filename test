@@ -49,10 +49,6 @@ function log     { echo "\n$fg_bold[default]>>> $*$reset_color" && sleep 0.2 }
 function bold    { echo "$fg_bold[default]$*$reset_color" }
 function success { echo "$fg_bold[green]>>> Success <<<$reset_color" }
 
-function wait {
-    gum spin --spinner=points --title=$2 sleep $1
-}
-
 function header {
     echo
     gum style \
@@ -64,7 +60,7 @@ function header {
 function fail {
     echo "\n$fg_bold[red]FAIL: $*$reset_color"
     if [[ "$FAIL_DUMP" == 1 ]]; then
-        dump_history_resources
+        dump_resources
     fi
     exit 1
 }
@@ -72,7 +68,7 @@ function fail {
 function failed {
     echo "\n$fg_bold[red]FAILED$reset_color"
     if [[ "$FAIL_DUMP" == 1 ]]; then
-        dump_history_resources
+        dump_resources
     fi
     exit 1
 }
@@ -101,11 +97,9 @@ function assert_equal {
     fi
 }
 
-function dump_history_resources {
+function dump_resources {
     bold "\nResources:"
     run_rogu resources
-    bold "\nHistory:"
-    run_rogu history
 }
 
 
@@ -135,12 +129,11 @@ function setup {
 function teardown {
     log "TEARDOWN <<<"
 
-    dump_history_resources
+    dump_resources
 
     bold "\nRemoving..."
     rm -rfv $DIR
     rm -rfv $ROGU_APP_DIR/file-cache
-    rm -fv $ROGU_APP_DIR/rogu-history.csv
     rm -fv $ROGU_APP_DIR/rogu-resource-cache.db
     rm -fv $ROGU_APP_DIR/rogu-modified-cache.db
     FAIL_DUMP=0
@@ -167,7 +160,7 @@ function teardown {
 
 function ugor {
 
-    wait 3 "Ugor stuff..."
+    header "UGOR STUFF"
 
     log "Creating file 01..."
     test_rogu ugor put $FILE1 $RFILE1 \
@@ -207,7 +200,7 @@ function file {
     local URI1="ugor://file/$RFILE1"
     local URI2="ugor://file/$RFILE2"
 
-    wait 3 "UPLOAD"
+    header "UPLOAD FILE"
 
     log "Uploading non-existent file"
     test_rogu upload idont/exist $URI1 &&
@@ -224,8 +217,7 @@ function file {
     success
 
     log "Uploading file again"
-    test_rogu upload $FILE1 $URI1 &&
-    fail "Uploaded file again unexpectedly"
+    test_rogu upload $FILE1 $URI1 || failed
     success
 
     log "Upload a different file with the same name"
@@ -233,7 +225,7 @@ function file {
     fail "Uploaded a different file with the same name unexpectedly"
     success
 
-    wait 3 "INSTALL"
+    header "INSTALL FILE"
 
     log "Installing non-existent file"
     test_rogu install $RFILE1 $URI2 &&
@@ -251,19 +243,17 @@ function file {
     success
 
     log "Installing file again"
-    test_rogu install $FILE3 $URI1 &&
-    fail "Installed file again unexpectedly"
+    test_rogu install $FILE3 $URI1 || failed
     success
 
-    wait 3 "SYNC"
+    header "SYNC FILE"
 
     log "Sync file from local to remote"
     test_rogu sync $FILE2 $URI2 || failed
     success
 
     log "Sync file from local to remote again"
-    test_rogu sync $FILE2 $URI2 &&
-    fail "Synced file from local to remote again unexpectedly"
+    test_rogu sync $FILE2 $URI2 || failed
     success
 
     log "Sync file from remote to local"
@@ -271,7 +261,7 @@ function file {
     assert_equal $FILE2 $FILE4
     success
 
-    wait 3 "UPDATE"
+    header "UPDATE FILE"
 
     log "Modify and update file 1"
     echo "Once upon a time, in a galaxy far far away..." > $FILE1
@@ -283,8 +273,36 @@ function file {
     log "Modify and update file 2"
     echo "Lorem ipsum..." > $FILE2
     test_rogu update || failed
+    test_rogu install -f $FILE4 $URI2 || failed
     assert_equal $FILE1 $FILE3
     assert_equal $FILE2 $FILE4
+    success
+
+    header "MOVE & DELETE FILE"
+
+    local KEY1=$(run_rogu key $FILE1 $URI1)
+    local KEY2=$(run_rogu key $FILE2 $URI2)
+    local KEY3=$(run_rogu key $FILE3 $URI1)
+
+    log "Try moving resource to an existing resource"
+    test_rogu mv $KEY1 $FILE3 &&
+    fail "Moved resource to an existing resource unexpectedly"
+    success
+
+    log "Delete file 3"
+    test_rogu rm --local $KEY3 || failed
+    success
+
+    log "Move file 1 to file 3"
+    test_rogu mv $KEY1 $FILE3 || failed
+    success
+
+    log "Delete file 2"
+    test_rogu rm --local --remote $KEY2 || failed
+    success
+
+    log "Try updating"
+    test_rogu update || failed
     success
 }
 
@@ -297,7 +315,7 @@ function archive {
     local URI1="ugor://archive/$RARCHIVE1"
     local URI2="ugor://archive/$RARCHIVE2?format=zip"
 
-    wait 3 "UPLOAD"
+    header "UPLOAD ARCHIVE"
 
     log "Upload non-existent directory"
     test_rogu upload idont/exist $URI1 &&
@@ -309,11 +327,10 @@ function archive {
     success
 
     log "Upload directory again"
-    test_rogu upload $DIR1 $URI1 &&
-    fail "Uploaded directory again unexpectedly"
+    test_rogu upload $DIR1 $URI1 || failed
     success
 
-    wait 3 "INSTALL"
+    header "INSTALL ARCHIVE"
 
     log "Install non-existent archive"
     test_rogu install $DIR3 ugor://archive/idont/exist &&
@@ -326,19 +343,17 @@ function archive {
     success
 
     log "Install archive again"
-    test_rogu install $DIR3 $URI1 &&
-    fail "Installed archive again unexpectedly"
+    test_rogu install $DIR3 $URI1 || failed
     success
 
-    wait 3 "SYNC"
+    header "SYNC ARCHIVE"
 
     log "Sync archive from local to remote"
     test_rogu sync $DIR2 $URI2 || failed
     success
 
     log "Sync archive from local to remote again"
-    test_rogu sync $DIR2 $URI2 &&
-    fail "Synced archive from local to remote again unexpectedly"
+    test_rogu sync $DIR2 $URI2 || failed
     success
 
     log "Sync archive from remote to local"
@@ -346,7 +361,7 @@ function archive {
     assert_equal $DIR2 $DIR4
     success
 
-    wait 3 "UPDATE"
+    header "UPDATE ARCHIVE"
 
     log "Modifying and updating archive 1"
     echo "Once upon a time, in a galaxy far, far away..." > $DIR1/README.md
@@ -358,6 +373,7 @@ function archive {
     log "Modifying and updating archive 2"
     echo "Lorem ipsum dolor sit amet, consectetur adipiscing elit..." > $DIR2/README.md
     test_rogu update || failed
+    test_rogu install -f $DIR4 $URI2 || failed
     assert_equal $DIR1 $DIR3
     assert_equal $DIR2 $DIR4
     success
@@ -396,15 +412,10 @@ for CMD in ${=COMMANDS}; do
         test_rogu resources
         fail "There shouldn't be any resources yet"
     fi
-    if ! [[ $(test_rogu history) =~ "No history" ]]; then
-        test_rogu history
-        fail "There shouldn't be any history yet"
-    fi
     FAIL_DUMP=1
 
     # Run the test
     setup
-    header $(echo $CMD | tr '[:lower:]' '[:upper:]')
     $CMD
     teardown
 done

@@ -1,8 +1,11 @@
 """
 ugor handles the communication with the Ugor server.
 """
+from collections import namedtuple
 from dataclasses import dataclass
 from functools import wraps
+from pathlib import Path
+from typing import Optional, Any, Union, List, Dict, Tuple
 
 import click
 import requests
@@ -29,15 +32,19 @@ def _ugor_error(f):
 # Primary functions
 
 @_ugor_error
-def get(name, etag=None, modified=None):
+def get(
+        name: str,
+        etag: str = None,
+        modified: str = None
+) -> Optional['UgorFile']:
     """Get a file from the Ugor server.
 
     Use etag and modified to check if the file is updated.
     Modified may be a string or an object with a isoformat() method
     (like datetime.datetime and arrow.Arrow).
 
-    Return None if the file isn't updated.
-    Raises UgorError404 if the file doesn't exist.
+    :raises UgorError404: if the file doesn't exist.
+    :return: a UgorFile object or None if the file is not modified.
     """
     headers = {}
     if etag:
@@ -57,8 +64,45 @@ def get(name, etag=None, modified=None):
     return UgorFile.of_response(name, r)
 
 
+FileHeader = namedtuple('FileHeader', [
+    'name',
+    'content_type',
+    'content_length',
+    'modified',
+    'etag',
+    'tag2',
+    'data2'
+])
+
+
 @_ugor_error
-def put(obj, name, force=False, **metadata):
+def get_header(name: str) -> FileHeader:
+    """Get the header of a file on the Ugor server.
+
+    :returns: a FileHeader object.
+    """
+    url = _url(name)
+    debug('HEAD', url)
+    r = requests.head(url, auth=auth())
+    r.raise_for_status()
+    return FileHeader(
+        name=name,
+        content_type=r.headers['Content-Type'],
+        content_length=int(r.headers['Content-Length']),
+        modified=r.headers['Last-Modified'],
+        etag=r.headers['ETag'],
+        tag2=r.headers.get('File-Tag2'),
+        data2=r.headers.get('File-Data2'),
+    )
+
+
+@_ugor_error
+def put(
+        obj: Union[Path, str, bytes],
+        name: str,
+        force: bool = False,
+        **metadata
+) -> 'UgorFile':
     """Upload something to the Ugor server.
 
     If obj is a Path it will be uploaded as a file.
@@ -70,11 +114,12 @@ def put(obj, name, force=False, **metadata):
 
     The metadata will be passed along to the UgorFile constructor.
 
-    Returns the UgorFile that was uploaded with new ETag and Last-Modified
-    values.
-
-    Raises UgorError412 if any of the preconditions fails.
-    Raises FileNotFoundError if obj is a file path that doesn't exist.
+    :param obj: Path, str or bytes.
+    :param name: the Ugor file name.
+    :param force: force upload even if preconditions fail.
+    :raises UgorError412: if any of the preconditions fails.
+    :raises FileNotFoundError: if obj is a file path that doesn't exist.
+    :return: the uploaded UgorFile with new ETag and Last-Modified values.
     """
     from pathlib import Path
 
@@ -113,7 +158,12 @@ def put(obj, name, force=False, **metadata):
 
 
 @_ugor_error
-def delete(name, force=False, etag=None, modified=None):
+def delete(
+        name: str,
+        force: bool = False,
+        etag: str = None,
+        modified: str = None
+):
     """Delete a file from the Ugor server"""
     headers = {}
     if etag and not force:
@@ -130,7 +180,7 @@ def delete(name, force=False, etag=None, modified=None):
 
 
 @_ugor_error
-def find(**params):
+def find(**params) -> List[str]:
     """Find files on the Ugor server with the given search parameters"""
     from config import ugor_url
 
@@ -142,7 +192,7 @@ def find(**params):
 
 
 @_ugor_error
-def info():
+def info() -> Dict[str, Any]:
     """Get information about the Ugor server"""
     from config import ugor_url
 
@@ -153,7 +203,7 @@ def info():
 
 
 @_ugor_error
-def exists(name):
+def exists(name: str) -> bool:
     """Check if a file exists on the Ugor server"""
     url = _url(name)
     debug('HEAD', url)
@@ -197,9 +247,9 @@ class UgorFile:
         """
         import mimetypes
 
-        assert self.name and isinstance(self.name, str),\
+        assert self.name and isinstance(self.name, str), \
             'name must be given and be a string'
-        assert self.content and isinstance(self.content, bytes),\
+        assert self.content and isinstance(self.content, bytes), \
             'content must be given and be bytes'
 
         # Guess mime type and encoding
@@ -213,7 +263,7 @@ class UgorFile:
             self.last_modified = self.last_modified.isoformat()
 
     @classmethod
-    def of(cls, name, content, **metadata):
+    def of(cls, name: str, content: Union[str, bytes], **metadata) -> 'UgorFile':
         """Create an UgorFile from a name and content."""
         if isinstance(content, str):
             content = content.encode()
@@ -222,7 +272,7 @@ class UgorFile:
         return cls(name=name, content=content, **metadata)
 
     @classmethod
-    def of_response(cls, name, response: requests.Response):
+    def of_response(cls, name: str, response: requests.Response) -> 'UgorFile':
         """Create a UgorFile from a response.
 
         This is based on the response of a GET request to Ugor, which is
@@ -253,7 +303,7 @@ class UgorFile:
             raise AppError(f'Invalid Ugor response missing header {e}') from e
 
     @classmethod
-    def of_file(cls, name, path, **metadata):
+    def of_file(cls, name: str, path: Union[Path, str], **metadata) -> 'UgorFile':
         """Create an UgorFile with the content read from path.
 
         Raises FileNotFoundError if the file is not found.
@@ -269,7 +319,7 @@ class UgorFile:
         content = open(path, 'rb').read()
         return cls.of(name, content, **metadata)
 
-    def headers(self):
+    def headers(self) -> Dict[str, str]:
         """Return a dict with the metadata headers, as well as Content-Type
         and Content-Encoding. The headers are only included if they are set.
 
@@ -294,7 +344,7 @@ class UgorFile:
 # ------------------------------------------------------------------------------
 # Utility functions
 
-def auth(user=None, pwd=None):
+def auth(user: str = None, pwd: str = None) -> Tuple[str, str]:
     """Manage the Ugor authentication credentials.
 
     It always returns a tuple: (user, pwd).
@@ -316,7 +366,7 @@ def auth(user=None, pwd=None):
     return cache.primary['ugor_user'], cache.primary['ugor_pwd']
 
 
-def _url(name):
+def _url(name: str) -> str:
     """Get the URL for the given file name"""
     from urllib.parse import urljoin
     from config import ugor_url
