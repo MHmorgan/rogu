@@ -37,7 +37,6 @@ __all__ = [
     'is_installed',
     'is_uploaded',
     'is_synced',
-    'is_repo',
     'is_modified',
     'is_ugor',
 ]
@@ -154,141 +153,135 @@ def fetch(path, uri, **kwargs):
 @need_resource
 @refresh_resource
 @recording
-def update(resource):
+def update(r):
     """Update a resource.
 
     This may include installing updates, uploading new versions,
     syncing git repositories, etc.
 
-    :param resource: a ``Resource`` instance
+    :param r: a ``Resource`` instance
     :return: a ``Result`` instance
     """
-    debug(f'Updating {resource} of category 0b{resource.category:b}')
+    debug(f'Updating {r} of category 0b{r.category:b}')
 
-    if is_ignored(resource):
-        return Fail(f'not updated: {resource.class_name} is ignored')
+    if is_ignored(r):
+        return Fail(f'not updated: {r.class_name} is ignored')
 
-    if hasattr(resource, 'update'):
-        return resource.update()
+    if hasattr(r, 'update'):
+        return r.update()
 
-    if is_synced(resource):
-        return sync(resource)
-    elif is_installed(resource):
-        return install(resource)
-    elif is_uploaded(resource):
-        return upload(resource)
+    if is_synced(r):
+        return sync(r)
+    elif is_installed(r):
+        return install(r)
+    elif is_uploaded(r):
+        return upload(r)
 
-    uri = resource.uri
-    path = resource.path
-    raise AppError(f"don't know how to update {resource} {path=!r} {uri=!r}")
+    uri = r.uri
+    path = r.path
+    raise AppError(f"don't know how to update {r} {path=!r} {uri=!r}")
 
 
 @need_resource
 @refresh_resource
 @recording
-def install(resource, **kwargs):
+def install(r, force=False):
     """Install a resource.
 
     *resource* is installed from its remote location to its local path.
 
-    Handles file modes, decoding, unarchiving, repo cloning, etc.
-
-    :param resource: a ``Resource`` instance
-    :keyword force: force installation even if the resource has local changes
+    :param r: a ``Resource`` instance
+    :param force: force installation even if the resource has local changes
     :return: a ``Result`` instance
     """
-    debug(f'Installing {resource!r}')
+    debug(f'Installing {r!r}')
 
     # The resource must be installable
-    if not hasattr(resource, 'install'):
-        msg = f'cannot install {resource}: install() not implemented.'
+    if not hasattr(r, 'install'):
+        msg = f'cannot install {r}: install() not implemented.'
         raise AppError(msg)
-
-    force = kwargs.get('force', False)
 
     # Don't install if the resource has local changes
-    if is_modified(resource, ['install']) and not force:
-        return Fail(f'not installed: {resource} has local changes')
+    if is_modified(r) and exists(r) and not force:
+        return Fail(f'not installed: {r} has local changes')
 
-    resource.category |= Resource.INSTALL
+    r.category |= Resource.INSTALL
     try:
-        resource.install(**kwargs)
+        r.install(force=force)
     except ActionBlocked as e:
         return Fail(f'not installed: {e}')
-    return Ok(f'installed {resource:U}')
+    return Ok(f'installed {r:U}')
 
 
 @need_resource
 @refresh_resource
 @recording
-def upload(resource, **kwargs):
+def upload(r, force=False):
     """Upload a resource to Ugor.
 
-    :param resource: a ``Resource`` instance
-    :keyword force: force upload even if the resource has no local changes
+    :param r: a ``Resource`` instance
+    :param force: force upload even if the resource has no local changes
     :return: a ``Result`` instance
     """
-    debug(f'Uploading {resource!r}')
+    debug(f'Uploading {r!r}')
 
     # The resource must be uploadable
-    if not hasattr(resource, 'upload'):
-        msg = f'cannot upload {resource}: upload() not implemented'
+    if not hasattr(r, 'upload'):
+        msg = f'cannot upload {r}: upload() not implemented'
         raise AppError(msg)
 
-    force = kwargs.get('force', False)
-
     # Don't upload if the resource has no local changes
-    if not is_modified(resource, ['upload']) and not force:
-        return Fail(f'not uploaded: {resource} has no local changes')
+    if is_modified(r) is False and not force:
+        return Fail(f'not uploaded: {r} has no local changes')
 
-    resource.category |= Resource.UPLOAD
+    r.category |= Resource.UPLOAD
     try:
-        resource.upload(**kwargs)
+        r.upload(force=force)
     except ActionBlocked as e:
         return Fail(f'not uploaded: {e}')
-    return Ok(f'uploaded {resource:P}')
+    return Ok(f'uploaded {r:P}')
 
 
 @need_resource
 @refresh_resource
 @recording
-def sync(resource, **kwargs):
+def sync(r):
     """Synchronise a resource. Sync is like a combination of install
     and upload.
 
-    :param resource: a ``Resource`` instance
+    :param r: a ``Resource`` instance
     :return: a ``Result`` instance
     """
-    debug(f'Synchronising {resource!r}')
+    debug(f'Synchronising {r!r}')
 
     # The resource must be installable and uploadable
-    if not (hasattr(resource, 'install') and hasattr(resource, 'upload')):
-        msg = f'cannot sync {resource}: install() or upload() not implemented'
+    if not (hasattr(r, 'install') and hasattr(r, 'upload')):
+        msg = f'cannot sync {r}: install() or upload() not implemented'
         return Fail(msg)
 
-    resource.category |= Resource.SYNC
+    r.category |= Resource.SYNC
 
     res = Ok()
 
     # Try to upload first
-    if is_modified(resource, ('sync', 'upload')):
+    if is_modified(r) is not False:
         try:
-            resource.upload(**kwargs)
+            r.upload()
         except ActionBlocked as e:
             res += f'not uploaded: {e}'
         else:
-            return res(f'synced by uploading {resource:P}')
+            return res(f'synced by uploading {r:P}')
     else:
         res += 'not uploaded: no local changes'
 
     # If upload failed, try to install
-    if not is_modified(resource, ('sync', 'install')):
+    if not is_modified(r) or not exists(r):
         try:
-            resource.install(**kwargs)
+            r.install()
         except ActionBlocked as e:
             res += f'not installed: {e}'
         else:
-            return res(f'synced by installing {resource:U}')
+            return res(f'synced by installing {r:U}')
     else:
         res += 'not installed: has local changes'
 
@@ -297,10 +290,10 @@ def sync(resource, **kwargs):
 
 @need_resource
 @recording
-def move(resource, path):
+def move(r, path):
     """Move a resource locally.
 
-    :param resource: a ``Resource`` instance
+    :param r: a ``Resource`` instance
     :param path: the new local path
     :return: a ``Result`` instance
     """
@@ -309,8 +302,9 @@ def move(resource, path):
     import shutil
     from pathlib import Path
 
-    new_key = resources.cache_key(path=path, uri=resource.uri)
-    old_path = resource.short_path
+    new_key = resources.cache_key(path=path, uri=r.uri)
+    old_key = r.key
+    old_path = r.short_path
 
     # Check if a resource with the same path and uri already exists
     # XXX Could this be automatically handled?
@@ -318,17 +312,22 @@ def move(resource, path):
         msg = f'not moved: target resource already exists: {new_key}'
         return Fail(msg)
 
-    path = shutil.move(str(resource.path), path)
-    resource.path = Path(resources.normalize_path(path))
-    return Ok(f'moved {old_path} to {resource.short_path}')
+    path = shutil.move(str(r.path), path)
+    r.path = Path(resources.normalize_path(path))
+
+    del cache.resources[old_key]
+    del cache.modified[old_key]
+    store(r)
+
+    return Ok(f'moved {old_path} to {r.short_path}')
 
 
 @need_resource
 @recording
-def delete(resource, local=False, remote=True, force=False):
+def delete(r, local, remote, force=False):
     """Remove a resource.
 
-    :param resource: a ``Resource`` instance
+    :param r: a ``Resource`` instance
     :param local: remove the local copy if ``True``
     :param remote: remove the Ugor file from server if ``True``
     :param force: force removal of Ugor file if ``True``
@@ -340,29 +339,28 @@ def delete(resource, local=False, remote=True, force=False):
     res = Ok()
 
     # Remove ugor file from server
-    if is_ugor(resource) and remote:
-        etag = getattr(resource, 'etag', None)
-        modified = getattr(resource, 'modified', None)
+    if is_ugor(r) and remote:
         ugor.delete(
-            name=resource.uri,
-            etag=etag,
-            modified=modified,
+            name=r.uri,
+            etag=getattr(r, 'last_etag', None),
+            modified=getattr(r, 'last_modified', None),
             force=force,
         )
         res += 'deleted Ugor file'
 
     # Delete local copy
     if local:
-        if resource.path.exists():
-            if resource.path.is_dir():
-                shutil.rmtree(resource.path, ignore_errors=True)
+        if r.path.exists():
+            if r.path.is_dir():
+                shutil.rmtree(r.path, ignore_errors=True)
             else:
-                os.remove(resource.path)
+                os.remove(r.path)
             res += 'deleted local copy'
         else:
             res += 'no local copy to delete'
 
-    del cache.resources[resource]
+    del cache.resources[r]
+    del cache.modified[r]
     return res('deleted from cache')
 
 
@@ -370,52 +368,51 @@ def delete(resource, local=False, remote=True, force=False):
 # RESOURCE SUPPORT
 
 @need_resource
-def store(resource):
-    """Store a resource in cache."""
+def store(r):
+    """Store a resource in cache.
+
+    This should be the only way to store a resource in cache.
+
+    :param r: a ``Resource`` instance
+    """
     import cache
-    # TODO Store in modified cache as well - and start using this
-    cache.resources[resource] = resource
+    cache.resources[r] = r
+    cache.modified[r] = r.local_hash
 
 
 @need_resource
-def exists(resource):
+def exists(r):
     """Check if a resource exists."""
-    assert isinstance(resource, Resource)
-    return resource.path.exists()
+    assert isinstance(r, Resource)
+    return r.path.exists()
 
 
 @need_resource
-def is_ignored(resource):
+def is_ignored(r):
     """Check if a resource is ignored."""
-    return bool(resource.category & Resource.IGNORE)
+    return bool(r.category & Resource.IGNORE)
 
 
 @need_resource
-def is_installed(resource):
+def is_installed(r):
     """Check if a resource is installed."""
-    return bool(resource.category & Resource.INSTALL)
+    return bool(r.category & Resource.INSTALL)
 
 
 @need_resource
-def is_uploaded(resource):
+def is_uploaded(r):
     """Check if a resource is updated."""
-    return bool(resource.category & Resource.UPLOAD)
+    return bool(r.category & Resource.UPLOAD)
 
 
 @need_resource
-def is_synced(resource):
+def is_synced(r):
     """Check if a resource is synced."""
-    return (resource.category & Resource.SYNC) == Resource.SYNC
+    return (r.category & Resource.SYNC) == Resource.SYNC
 
 
 @need_resource
-def is_repo(resource):
-    """Check if a resource is a git repository."""
-    return bool(resource.category & Resource.REPO)
-
-
-@need_resource
-def is_modified(resource, actions=None):
+def is_modified(r):
     """Check if a resource has local changes since last recorded history.
 
     If there are history entries for the resource, but the resource path
@@ -423,25 +420,17 @@ def is_modified(resource, actions=None):
     If there are no history entries for the resource it is considered unmodified
     if it doesn't exist locally.
 
-    TODO Use a dedicated modified cache instead. The cache should be a shelve
-    dict mapping resources their last recorded local resource hash.
+    TODO Cleanup is_modified usage
     """
-    import history
+    import cache
 
-    try:
-        latest = next(
-            entry
-            for entry in history.resource_entries(resource)
-            if not actions or entry.action in actions
-        )
-    except StopIteration:
-        return exists(resource)
-    else:
-        return latest.local_hash != resource.local_hash or not exists(resource)
+    if r in cache.modified:
+        return cache.modified[r] != r.local_hash
+    return None
 
 
 @need_resource
 def is_ugor(resource):
     """Check if a resource is an Ugor resource."""
     from urllib.parse import urlparse
-    return urlparse(resource.uri).scheme == ''
+    return urlparse(resource.uri).scheme == 'ugor'
