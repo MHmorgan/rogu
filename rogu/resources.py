@@ -56,10 +56,6 @@ class Resource:
     # uploaded during update, depending on which version is newer.
     SYNC = INSTALL | UPLOAD
 
-    # The git category indicates that a resource is a git repository and during
-    # syncing the git repository should be updated.
-    REPO = 1 << 3
-
     # The ignore category indicates that a resource should not be updated.
     IGNORE = 1 << 4
 
@@ -251,7 +247,7 @@ class Archive(Resource):
             self.last_etag = ''
             self.last_modified = ''
 
-    def install(self, mode=None, force=False, **kwargs):
+    def install(self, force=False, **kwargs):
         """Install the archive to its path from the uri."""
         import cache
 
@@ -397,7 +393,7 @@ class File(Resource):
 # ------------------------------------------------------------------------------
 # RELEASE
 
-class Release(Resource):  # TODO
+class Release(Resource):
     """A GitHub Release object for RDSL."""
 
     last_etag = None
@@ -414,7 +410,7 @@ class Release(Resource):  # TODO
         file = parsed.path.lstrip('/')
         return f'https://github.com/{user}/{repo}/releases/latest/download/{file}'
 
-    def install(self, **kwargs):
+    def install(self, mode=None, **kwargs):
         """Install the release to its path from the uri.
 
         If the release file has an archive extension, it will be unpacked.
@@ -445,10 +441,21 @@ class Release(Resource):  # TODO
         with ftmp.open('wb') as f:
             f.write(r.content)
 
+        shutil.register_unpack_format('gzip', ['.gz'], unpack_gzip)
+        shutil.register_unpack_format('bzip2', ['.bz2'], unpack_bzip2)
+        shutil.register_unpack_format('xz', ['.xz'], unpack_xz)
+
         try:
             shutil.unpack_archive(ftmp, self.path)
-        except ValueError:
+        except shutil.ReadError:
             shutil.copy(ftmp, self.path)
+        finally:
+            shutil.unregister_unpack_format('gzip')
+            shutil.unregister_unpack_format('bzip2')
+            shutil.unregister_unpack_format('xz')
+
+        if mode:
+            self.path.chmod(mode)
 
 
 # ------------------------------------------------------------------------------
@@ -574,7 +581,3 @@ def unpack_xz(path, dest):
     with lzma.open(path, 'rb') as f:
         Path(dest).write_bytes(f.read())
 
-
-shutil.register_unpack_format('gzip', ['.gz'], unpack_gzip)
-shutil.register_unpack_format('bzip2', ['.bz2'], unpack_bzip2)
-shutil.register_unpack_format('xz', ['.xz'], unpack_xz)

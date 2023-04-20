@@ -142,6 +142,7 @@ function teardown {
     rm -rfv $ROGU_APP_DIR/file-cache
     rm -fv $ROGU_APP_DIR/rogu-history.csv
     rm -fv $ROGU_APP_DIR/rogu-resource-cache.db
+    rm -fv $ROGU_APP_DIR/rogu-modified-cache.db
     FAIL_DUMP=0
 
     # Remove test files from ugor

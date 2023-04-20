@@ -5,7 +5,6 @@ from functools import partial
 # NOTE Only import the bare minimum here, to keep the startup time low.
 import click
 from click import echo, style
-from resources import Resource
 from ui import *
 
 
@@ -47,8 +46,9 @@ def put(name):
 @cli.command()
 @click.argument('path')
 @click.argument('uri')
+@click.option('-m', '--mode', type=int, default=0o644, help='File mode.')
 @click.option('-f', '--force', is_flag=True, help='Overwrite existing files.')
-def install(path, uri, force):
+def install(path, uri, mode, force):
     """Install a resource. The resource is fetched from URI and written to PATH.
 
     URI may be a relative path (an Ugor name), or a URL.
@@ -58,13 +58,12 @@ def install(path, uri, force):
     Returns 2 if the resource action is blocked, 1 for errors, and 0 for
     success.
     """
-    import cache
     import rdsl
 
-    resource = rdsl.fetch(path=path, uri=uri)
+    resource = rdsl.fetch(path=path, uri=uri, mode=mode)
     res = rdsl.install(resource, force=force)
     if res.is_success:
-        cache.resources[resource] = resource
+        rdsl.store(resource)
 
     txt = format(res, '    ')
     echo(txt.capitalize())
@@ -85,13 +84,12 @@ def upload(path, uri, force):
     Returns 2 if the resource action is blocked, 1 for errors, and 0 for
     success.
     """
-    import cache
     import rdsl
 
     resource = rdsl.fetch(path=path, uri=uri)
     res = rdsl.upload(resource, force=force)
     if res.is_success:
-        cache.resources[resource] = resource
+        rdsl.store(resource)
 
     txt = format(res, '    ')
     echo(txt.capitalize())
@@ -101,7 +99,8 @@ def upload(path, uri, force):
 @cli.command()
 @click.argument('path')
 @click.argument('uri')
-def sync(path, uri):
+@click.option('-m', '--mode', type=int, default=0o644, help='File mode.')
+def sync(path, uri, mode):
     """Synchronise a resource. This is like a combination of
     update and install.
 
@@ -112,13 +111,12 @@ def sync(path, uri):
     Returns 2 if the resource action is blocked, 1 for errors, and 0 for
     success.
     """
-    import cache
     import rdsl
 
-    resource = rdsl.fetch(path=path, uri=uri)
+    resource = rdsl.fetch(path=path, uri=uri, mode=mode)
     res = rdsl.sync(resource)
     if res.is_success:
-        cache.resources[resource] = resource
+        rdsl.store(resource)
 
     txt = format(res, '    ')
     echo(txt.capitalize())
@@ -157,7 +155,6 @@ def update(key, path, uri):
 
     # Prioritise uploaded resources, then all other resources.
     priority = [
-        rdsl.is_repo,  # Avoid committing files which will be updated later
         rdsl.is_uploaded,
         lambda _: True,
     ]
@@ -181,7 +178,7 @@ def update(key, path, uri):
             txt = format(res, '    ')
             echo(txt.capitalize())
             if res:
-                cache.resources[resource] = resource
+                rdsl.store(resource)
 
     sys.exit(code)
 
@@ -496,25 +493,21 @@ def version():
 @cli.command()
 def doctor():
     """Analyze the Rogu installation."""
-    import cache
     import config
     import history
     import os
 
-    w = 25
+    w = 24
 
     echo(f'{bold("Version"):>{w}} {config.version}')
     echo(f'{bold("Python"):>{w}} {sys.version}')
 
-    # Statistics
-    echo()
+    # TODO Statistics
 
     # Files
     echo()
     files = [
         ('App directory', config.app_dir),
-        ('Primary cache', cache.primary_file),
-        ('Resources cache', cache.resources_file),
         ('History file', history.history_file),
     ]
     for label, path in files:
@@ -537,6 +530,21 @@ def doctor():
 def help_():
     """Print detailed help."""
     echo(HELP)
+
+
+@cli.command('key')
+@click.argument('path')
+@click.argument('uri')
+@click.option('--exists', is_flag=True, help='Check if the resource exists.')
+def resource_key(path, uri, exists):
+    """Print the resource key for PATH and URI."""
+    import cache
+    import resources
+
+    key = resources.cache_key(path, uri)
+    if exists and key not in cache.resources:
+        bail('Resource not found')
+    echo(key, nl=False)
 
 
 # ------------------------------------------------------------------------------
@@ -632,13 +640,15 @@ click.exceptions.UsageError.show = show_usage_error
 # TEXT
 
 HELP = """
-# Files
+Files
+=====
 
 Files can be installed/uploaded/synced with Ugor. The file URIs look like this:
 
     ugor://file/<name>
 
-# Archives
+Archives
+========
 
 Archives can be installed/uploaded/synced with Ugor. They are directories locally
 stored in an archive format in Ugor. The archive URIs look like this:
@@ -647,4 +657,19 @@ stored in an archive format in Ugor. The archive URIs look like this:
 
 Where the format is one of 'zip', 'tar', 'gztar', 'bztar', 'xztar'.
 It defaults to 'xztar'.
+
+Releases
+========
+
+GitHub releases can be installed with Rogu. The release URIs look like this:
+
+    release://<repo>@<user>/<file>
+    
+This kind of resource only supports the 'install' command.
+
+CLI
+===
+
+Resource action commands returns 2 if the action is blocked, 0 on success and
+1 on error.
 """

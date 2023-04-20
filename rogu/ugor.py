@@ -130,7 +130,7 @@ def delete(name, force=False, etag=None, modified=None):
 
 
 @_ugor_error
-def find(**params):  # TODO
+def find(**params):
     """Find files on the Ugor server with the given search parameters"""
     from config import ugor_url
 
