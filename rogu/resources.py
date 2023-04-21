@@ -99,7 +99,7 @@ class Resource(abc.ABC):
     # Mapping of resource names to classes
     subclasses = {}
 
-    def __init__(self, path, uri):
+    def __init__(self, path: Union[Path, str], uri: str):
         if not uri:
             raise ValueError('Resource must have a uri.')
         if not path:
@@ -295,6 +295,8 @@ class _UgorResource(Resource):
         if file is None:
             verbose(f'{self} is up-to-date')
             return None
+        if file.description:
+            self.description = file.description
 
         self.last_etag = file.last_etag
         self.last_modified = file.last_modified
@@ -391,9 +393,15 @@ class Archive(_UgorResource):
         for fmt, ext, _ in shutil.get_unpack_formats()
     }
 
-    def __init__(self, path, uri):
+    def __init__(
+            self,
+            path: Union[Path, str],
+            uri: str,
+            description: str = None
+    ):
         debug(f'Creating Archive of {path=!r} {uri=!r}')
         super().__init__(path, uri)
+        self.description = description
 
         parsed = urlparse(uri)
         if m := re.search(r'format=(\w+)', parsed.query):
@@ -463,9 +471,15 @@ class File(_UgorResource):
     The file path must be a file.
     """
 
-    def __init__(self, path, uri):
+    def __init__(
+            self,
+            path: Union[Path, str],
+            uri: str,
+            description: str = None
+    ):
         debug(f'Creating File of {path=!r} {uri=!r}')
         super().__init__(path, uri)
+        self.description = description
 
     @property
     def name(self):

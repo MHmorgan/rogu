@@ -104,16 +104,21 @@ class chdir(AbstractContextManager):
 # ------------------------------------------------------------------------------
 # RESOURCE ACTIONS
 
-def fetch(path: Union[Path, str], uri: str) -> Resource:
+def fetch(
+        path: Union[Path, str],
+        uri: str,
+        description: str = None
+) -> Resource:
     """Fetch/create a resource.
 
     If the resource is stored (cached) locally, it will be returned.
     Otherwise, the resource type is determined and a new resource is returned.
 
-    Unused keyword arguments are passed to the resource constructor.
+    If the resource supports description, it will be
 
     :param path: local resource path
     :param uri: remote resource uri
+    :param description: resource description
     :return: a ``Resource`` instance
     """
     import resources
@@ -131,9 +136,9 @@ def fetch(path: Union[Path, str], uri: str) -> Resource:
     # Determine resource type
     parsed = urlparse(uri)
     if parsed.scheme == 'ugor' and parsed.netloc == 'file':
-        return File(path, uri)
+        return File(path, uri, description)
     if parsed.scheme == 'ugor' and parsed.netloc == 'archive':
-        return Archive(path, uri)
+        return Archive(path, uri, description)
     if parsed.scheme == 'release':
         return Release(path, uri)
 
