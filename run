@@ -1,0 +1,11 @@
+#!/usr/bin/env zsh
+
+export ROGU_APP_DIR=.
+
+if [[ "$1" =~ "-OO?" ]]; then
+	OPTS=$1
+	shift
+fi
+
+venv/bin/python3 $OPTS rogu $*
+
