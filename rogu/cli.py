@@ -107,7 +107,8 @@ def install(path, uri, mode, force):
 @click.argument('path', type=click.Path(exists=True))
 @click.argument('uri')
 @click.option('-f', '--force', is_flag=True, help='Overwrite existing files.')
-def upload(path, uri, force):
+@click.option('-d', '--description', help='Description of the file.')
+def upload(path, uri, force, description):
     """Upload a resource.
 
     To upload to Ugor, URI must be a relative path (an Ugor name).
@@ -120,7 +121,7 @@ def upload(path, uri, force):
     import rdsl
 
     try:
-        resource = rdsl.fetch(path=path, uri=uri)
+        resource = rdsl.fetch(path=path, uri=uri, description=description)
         rdsl.upload(resource, force=force)
     except ActionBlocked as e:
         warn(e)
@@ -132,7 +133,8 @@ def upload(path, uri, force):
 @click.argument('path')
 @click.argument('uri')
 @click.option('-m', '--mode', type=int, help='File mode.')
-def sync(path, uri, mode):
+@click.option('-d', '--description', help='Description of the file.')
+def sync(path, uri, mode, description):
     """Synchronise a resource. This is like a combination of
     update and install.
 
@@ -146,7 +148,7 @@ def sync(path, uri, mode):
     import rdsl
 
     try:
-        resource = rdsl.fetch(path=path, uri=uri)
+        resource = rdsl.fetch(path=path, uri=uri, description=description)
         rdsl.sync(resource)
     except ActionBlocked as e:
         warn(e)
