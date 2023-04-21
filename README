@@ -8,18 +8,6 @@ Build zipapp:
 
 	make build
 
-Run tests (the three are equivalent; requires setup):
+Run tests:
 
-	./test all
-	make test
-	make
-
-Run a specific test(s):
-
-	./test [test-name...]
-
-Test names:
-
-	ugor
-	file
-	archive
+	./test [all|ugor|file|archive]
