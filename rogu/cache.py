@@ -25,6 +25,7 @@ resources_file = Path(config.app_dir) / 'rogu-resource-cache'
 resources = _open(resources_file)
 atexit.register(resources.close)
 
+# TODO Remove this. It's not used.
 modified_file = Path(config.app_dir) / 'rogu-modified-cache'
 modified = _open(modified_file)
 atexit.register(modified.close)
