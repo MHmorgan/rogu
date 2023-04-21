@@ -1,6 +1,7 @@
 """cli implements the command line interface for the rogu app."""
 import sys
 from functools import partial
+from typing import Iterable
 
 # NOTE Only import the bare minimum here, to keep the startup time low.
 import click
@@ -57,8 +58,18 @@ def list_(name, all_):
     if name:
         params['name'] = name
 
+    try:
+        names = ugor.find(**params)
+    except UgorError440:
+        bad('No files found.')
+        return
+
+    w = max(len(n) for n in names)
+    widths = (w,)
     for name in ugor.find(**params):
-        echo(name)
+        header = ugor.get_header(name)
+        desc = dim(header.description) if header.description else ''
+        echo_row((name, desc), widths)
 
 
 # ------------------------------------------------------------------------------
@@ -524,6 +535,7 @@ def resource_key(path, uri, exists):
 # ------------------------------------------------------------------------------
 # UTILS
 
+dim = partial(style, dim=True)
 bold = partial(style, bold=True)
 red = partial(style, fg='red')
 green = partial(style, fg='green')
@@ -576,7 +588,7 @@ def echo_ugor_file(file, exclude=None, include=None):
         echo(f'\n{label("Content")}\n{file.content}')
 
 
-def echo_row(cols, widths, sep='  '):
+def echo_row(cols: Iterable[str], widths: Iterable[int], sep: str = '  '):
     """Echo a row of items with the given widths."""
     from itertools import zip_longest
 
