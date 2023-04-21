@@ -508,12 +508,13 @@ def doctor():
     show('GitHub CLI', shutil.which('gh'))
 
     # Environment
-    env_vars = config.env_vars.values()
-    if len(env_vars):
-        hr()
-        for name in sorted(env_vars):
-            if val := os.environ.get(name):
-                show(name, val)
+    first = True
+    for name in sorted(config.env_vars.values()):
+        if val := os.environ.get(name):
+            if first:
+                hr()
+                first = False
+            show(name, val)
 
 
 @cli.command('help')
