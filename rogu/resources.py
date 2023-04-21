@@ -277,6 +277,8 @@ class _UgorResource(Resource):
 
         :returns: the file content or None if it's up-to-date.
         """
+        debug('..._UgorResource.ugor_install()')
+
         file = ugor.get(
             name=self.name,
             etag=self.last_etag if not force else None,
@@ -295,6 +297,8 @@ class _UgorResource(Resource):
 
     def ugor_upload(self, obj: Union[Path, bytes, str], force: bool):
         """Upload this resource to Ugor."""
+        debug('..._UgorResource.ugor_upload()')
+
         file = ugor.put(
             obj=obj,
             name=self.name,
@@ -320,6 +324,8 @@ class _UgorResource(Resource):
             -1 - uri is newer;
             -2 - uri is newer but path has diverged.
         """
+        debug('..._UgorResource.divergence()')
+
         try:
             header = ugor.get_header(self.name)
         except UgorError404:
@@ -426,6 +432,7 @@ class Archive(_UgorResource):
     def install(self, force: bool = False):
         """Install the archive to its path from the uri."""
         import cache
+        debug('...Archive.install()')
 
         content = self.ugor_install(force)
         if content is None:
@@ -440,6 +447,7 @@ class Archive(_UgorResource):
     def upload(self, force: bool = False):
         """Upload the archive to Ugor."""
         import cache
+        debug('...Archive.upload()')
 
         if not self.path.exists():
             raise ActionBlocked(f'{self.short_path} does not exist.')
@@ -490,6 +498,7 @@ class File(_UgorResource):
 
     def install(self, force: bool = False):
         """Install the file to its path from the uri."""
+        debug('...File.install()')
         content = self.ugor_install(force)
         if content is None:
             return
@@ -500,6 +509,7 @@ class File(_UgorResource):
 
     def upload(self, force: bool = False):
         """Upload the file to Ugor."""
+        debug('...File.upload()')
 
         if force:
             debug(f'Forcing upload.')
@@ -541,6 +551,7 @@ class Release(Resource):
         """
         # Check if the release has changed
         import requests
+        debug(f'...Release.divergence()')
 
         # A release can only ever be installed, and are not expected to be
         # modified locally. If it doesn't exist or haven't been installed
@@ -566,6 +577,7 @@ class Release(Resource):
         """
         import cache
         import requests
+        debug(f'...Release.install()')
 
         url = self.github_url
         file = urlparse(url).path.lstrip('/')
@@ -574,6 +586,7 @@ class Release(Resource):
             mode = self.path.stat().st_mode
         else:
             mode = None
+        debug(f'File {mode=!r}')
 
         # Download the release
         r = requests.get(url, allow_redirects=True)
@@ -594,12 +607,13 @@ class Release(Resource):
 
         try:
             shutil.unpack_archive(ftmp, self.path)
+            verbose(f'Unpacked release to {self.path}')
         except shutil.ReadError:
             shutil.copy(ftmp, self.path)
-        else:
-            if mode is not None:
-                self.path.chmod(mode)
+            verbose(f'Installed release to {self.path}')
         finally:
+            if mode is not None and self.path.exists():
+                self.path.chmod(mode)
             shutil.unregister_unpack_format('gzip')
             shutil.unregister_unpack_format('bzip2')
             shutil.unregister_unpack_format('xz')
