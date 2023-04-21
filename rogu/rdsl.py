@@ -78,15 +78,6 @@ def blocked(msg, cause=None, /):
     raise ActionBlocked(msg)
 
 
-def run(o):
-    """Run the given object as a RDSL script.
-
-    The object can be a string (source code), a file object,
-    a Path object, or a code object.
-    """
-    pass  # TODO implement run RDSL script
-
-
 class chdir(AbstractContextManager):
     """Change work directory.
 

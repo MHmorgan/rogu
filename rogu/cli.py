@@ -22,6 +22,10 @@ from ui import *
 @click.group()
 @click.option('-v', '--verbose', is_flag=True, help='Enable verbose output.')
 def cli(verbose):
+    """Rogu is a tool for managing resources.
+
+    Run 'rogu help' for more detailed help.
+    """
     if verbose:
         import ui
         ui.VERBOSE = True
@@ -38,11 +42,12 @@ def get(name):
 
 @cli.command()
 @click.argument('name')
-def put(name):
+@click.option('-d', '--description', help='Description of the file.')
+def put(name, description):
     """Put an Ugor file from stdin."""
     import ugor
     content = sys.stdin.buffer.read()
-    ugor.put(obj=content, name=name, tag2='Rogu')
+    ugor.put(obj=content, name=name, tag2='Rogu', description=description)
 
 
 @cli.command('list')
@@ -479,36 +484,37 @@ def version():
 @cli.command()
 def doctor():
     """Analyze the Rogu installation."""
+    import cache
     import config
-    import history
     import os
+    import shutil
 
-    w = 24
+    def show(lbl, txt):
+        echo(f'{bold(lbl):>{24}} {txt}')
 
-    echo(f'{bold("Version"):>{w}} {config.version}')
-    echo(f'{bold("Python"):>{w}} {sys.version}')
+    def hr():
+        echo('-----'.rjust(19))
 
-    # TODO Statistics
+    show('Version', config.version)
+    show('Python', sys.version)
+    show('Debug', __debug__)
+    show('App Directory', config.app_dir)
+    show('Ugor URL', config.ugor_url)
+    show('Resources', len(cache.resources))
 
-    # Files
-    echo()
-    files = [
-        ('App directory', config.app_dir),
-    ]
-    for label, path in files:
-        echo(f'{bold(label):>{w}} {path}')
-
-    # Config
-    echo()
-    for name in sorted(config.defaults):
-        val = getattr(config, name)
-        echo(f'{bold(name):>{w}} {val}')
+    hr()
+    show('Rogu', shutil.which('rogu'))
+    show('Python', sys.executable)
+    show('Homebrew', shutil.which('brew'))
+    show('Git', shutil.which('git'))
+    show('GitHub CLI', shutil.which('gh'))
 
     # Environment
-    echo()
-    for name in sorted(config.env_vars.values()):
-        if val := os.environ.get(name):
-            echo(f'{bold(name):>{w}}={val}')
+    if env_vars := config.env_vars.values():
+        hr()
+        for name in sorted(env_vars):
+            if val := os.environ.get(name):
+                show(name, val)
 
 
 @cli.command('help')
@@ -621,20 +627,47 @@ def show_usage_error(self, *args) -> None:
 
 click.exceptions.UsageError.show = show_usage_error
 
-
 # ------------------------------------------------------------------------------
 # TEXT
 
 HELP = """
-Files
-=====
+Ugor
+====
+
+Rogu is a Ugor client with extended functionality.
+All files uploaded/put to Ugor by Rogu is tagged with `tag2=Rogu`, and any
+resource uploaded use `data2` to store the local hash of the resource.
+
+Additionally, Rogu himself may be installed from Ugor by a GET request
+without a path.
+
+
+CLI Basics
+==========
+
+The CLI provides some basic commands which do not deal with resources.
+These are `get`, `put` and `list`, and are used for basic interaction with
+Ugor.
+
+The `ugor` command group provides commands for interacting with Ugor. However,
+these are intended for debugging and testing purposes only.
+
+
+Resources
+=========
+
+Everything revolves around resources. A resource is uniquely identified by a
+path and a URI. The path is a local file or directory. The URI contains
+information about the remote location of the resource. Each resource has its
+own custom URI format.
+
+## Files
 
 Files can be installed/uploaded/synced with Ugor. The file URIs look like this:
 
     ugor://file/<name>
 
-Archives
-========
+## Archives
 
 Archives can be installed/uploaded/synced with Ugor. They are directories locally
 stored in an archive format in Ugor. The archive URIs look like this:
@@ -644,18 +677,11 @@ stored in an archive format in Ugor. The archive URIs look like this:
 Where the format is one of 'zip', 'tar', 'gztar', 'bztar', 'xztar'.
 It defaults to 'xztar'.
 
-Releases
-========
+## Releases
 
 GitHub releases can be installed with Rogu. The release URIs look like this:
 
     release://<repo>@<user>/<file>
     
 This kind of resource only supports the 'install' command.
-
-CLI
-===
-
-Resource action commands returns 2 if the action is blocked, 0 on success and
-1 on error.
 """

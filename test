@@ -45,7 +45,7 @@ exists gum || {
 
 function warn    { echo "$fg_bold[yellow]>>> $*$reset_color" }
 function err     { echo "$fg_bold[red]>>> $*$reset_color" }
-function log     { echo "\n$fg_bold[default]>>> $*$reset_color" && sleep 0.2 }
+function log     { echo "$fg_bold[default]>>> $*$reset_color" && sleep 0.2 }
 function bold    { echo "$fg_bold[default]$*$reset_color" }
 function success { echo "$fg_bold[green]>>> Success <<<$reset_color" }
 
@@ -90,6 +90,28 @@ function assert_equal {
         then
             diff -r $1 $2
             fail "Directories $1 and $2 are not equal"
+        fi
+
+    else
+        fail "Files $1 and $2 are not of the same type"
+    fi
+}
+
+function assert_notequal {
+    # Compare two files
+    if [[ -f $1 && -f $2 ]]
+    then
+        if [[ -z "$(diff $1 $2)" ]]
+        then
+            fail "Files $1 and $2 are equal"
+        fi
+
+    # Compare two directories
+    elif [[ -d $1 && -d $2 ]]
+    then
+        if [[ -z "$(diff -r $1 $2)" ]]
+        then
+            fail "Directories $1 and $2 are equal"
         fi
 
     else
@@ -162,7 +184,7 @@ function ugor {
 
     header "UGOR STUFF"
 
-    log "Creating file 01..."
+    log "Creating file 01"
     test_rogu ugor put $FILE1 $RFILE1 \
         --description='File 01' \
         --tag='test tag' \
@@ -174,21 +196,33 @@ function ugor {
         --data4='{"test": "data 4"}' \
         --data5='{"test": "data 5"}' ||
         fail 'Failed to upload file 01'
-    success
 
-    log "Getting file 01..."
+    log "Getting file 01"
     test_rogu ugor get $RFILE1 || fail 'Failed to download file 01'
-    success
 
-    log "Deleting file 01..."
+    log "Finding file 01"
+    test_rogu ugor find --name "$DIR/01*.txt" || failed
+    test_rogu ugor find --name-re "$DIR/\\d\\d\\w*.txt$" || failed
+    test_rogu ugor find --tag 'test tag' || failed
+    test_rogu ugor find --tag2 'test tag 2' || failed
+    test_rogu ugor find --tag3 'test tag 3' || failed
+
+    log "Deleting file 01"
     test_rogu ugor delete $RFILE1 || fail 'Failed to delete file 01'
-    success
 
-    log "Getting non-existent file 01..."
+    log "Getting non-existent file 01"
     test_rogu ugor get $RFILE1 && fail 'Got non-existent file 01'
     success
 
-    # TODO Test Ugor's find functionality
+    header "BASICS"
+
+    log "Uploading file 2"
+    cat $FILE2 | test_rogu put $RFILE2 || failed
+
+    log "Downloading file 2"
+    test_rogu get $RFILE2 > $FILE3 || failed
+    assert_equal $FILE2 $FILE3
+    success
 }
 
 
@@ -205,20 +239,16 @@ function file {
     log "Uploading non-existent file"
     test_rogu upload idont/exist $URI1 &&
     fail "Uploaded non-existent file unexpectedly"
-    success
 
     log "Uploading to invalid Rogu URI"
     test_rogu upload $FILE1 https://foobar.org/rogu &&
     fail "Uploaded to invalid Rogu URI unexpectedly"
-    success
 
     log "Uploading file"
     test_rogu upload $FILE1 $URI1 || failed
-    success
 
     log "Uploading file again"
     test_rogu upload $FILE1 $URI1 || failed
-    success
 
     log "Upload a different file with the same name"
     test_rogu upload $FILE2 $URI1 &&
@@ -230,17 +260,14 @@ function file {
     log "Installing non-existent file"
     test_rogu install $RFILE1 $URI2 &&
     fail "Installed non-existent file unexpectedly"
-    success
 
     log "Installing from invalid Rogu URI"
     test_rogu install $RFILE1 https://foobar.org/rogu &&
     fail "Installed from invalid Rogu URI unexpectedly"
-    success
 
     log "Installing file"
     test_rogu install $FILE3 $URI1 || failed
     assert_equal $FILE1 $FILE3
-    success
 
     log "Installing file again"
     test_rogu install $FILE3 $URI1 || failed
@@ -250,11 +277,9 @@ function file {
 
     log "Sync file from local to remote"
     test_rogu sync $FILE2 $URI2 || failed
-    success
 
     log "Sync file from local to remote again"
     test_rogu sync $FILE2 $URI2 || failed
-    success
 
     log "Sync file from remote to local"
     test_rogu sync $FILE4 $URI2 || failed
@@ -268,7 +293,6 @@ function file {
     test_rogu update || failed
     assert_equal $FILE1 $FILE3
     assert_equal $FILE2 $FILE4
-    success
 
     log "Modify and update file 2"
     echo "Lorem ipsum..." > $FILE2
@@ -287,19 +311,15 @@ function file {
     log "Try moving resource to an existing resource"
     test_rogu mv $KEY1 $FILE3 &&
     fail "Moved resource to an existing resource unexpectedly"
-    success
 
     log "Delete file 3"
     test_rogu rm --local $KEY3 || failed
-    success
 
     log "Move file 1 to file 3"
     test_rogu mv $KEY1 $FILE3 || failed
-    success
 
     log "Delete file 2"
     test_rogu rm --local --remote $KEY2 || failed
-    success
 
     log "Try updating"
     test_rogu update || failed
@@ -320,11 +340,9 @@ function archive {
     log "Upload non-existent directory"
     test_rogu upload idont/exist $URI1 &&
     fail "Uploaded non-existent directory unexpectedly"
-    success
 
     log "Upload directory"
     test_rogu upload $DIR1 $URI1 || failed
-    success
 
     log "Upload directory again"
     test_rogu upload $DIR1 $URI1 || failed
@@ -335,12 +353,10 @@ function archive {
     log "Install non-existent archive"
     test_rogu install $DIR3 ugor://archive/idont/exist &&
     fail "Installed non-existent archive unexpectedly"
-    success
 
     log "Install archive"
     test_rogu install $DIR3 $URI1 || failed
     assert_equal $DIR1 $DIR3
-    success
 
     log "Install archive again"
     test_rogu install $DIR3 $URI1 || failed
@@ -350,11 +366,9 @@ function archive {
 
     log "Sync archive from local to remote"
     test_rogu sync $DIR2 $URI2 || failed
-    success
 
     log "Sync archive from local to remote again"
     test_rogu sync $DIR2 $URI2 || failed
-    success
 
     log "Sync archive from remote to local"
     test_rogu sync $DIR4 $URI2 || failed
@@ -368,7 +382,6 @@ function archive {
     test_rogu update || failed
     assert_equal $DIR1 $DIR3
     assert_equal $DIR2 $DIR4
-    success
 
     log "Modifying and updating archive 2"
     echo "Lorem ipsum dolor sit amet, consectetur adipiscing elit..." > $DIR2/README.md

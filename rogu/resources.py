@@ -277,7 +277,7 @@ class _UgorResource(Resource):
     """
     last_etag = None
     last_modified = None
-    description = None  # TODO use this
+    description = None
 
     def ugor_install(self, force: bool) -> Optional[bytes]:
         """Download this resource from Ugor.
