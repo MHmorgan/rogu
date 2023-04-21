@@ -41,7 +41,24 @@ def put(name):
     """Put an Ugor file from stdin."""
     import ugor
     content = sys.stdin.buffer.read()
-    ugor.put(obj=content, name=name)
+    ugor.put(obj=content, name=name, tag2='Rogu')
+
+
+@cli.command('list')
+@click.argument('name', required=False)
+@click.option('-a', '--all', 'all_', is_flag=True, help='List all files, not only files owned by Rogu.')
+def list_(name, all_):
+    """List Ugor files. Optionally filter by NAME."""
+    import ugor
+
+    params = {}
+    if not all_:
+        params['tag2'] = 'Rogu'
+    if name:
+        params['name'] = name
+
+    for name in ugor.find(**params):
+        echo(name)
 
 
 # ------------------------------------------------------------------------------
