@@ -288,6 +288,10 @@ def delete(r, local, remote, force=False):
     :param local: remove the local copy if ``True``
     :param remote: remove the Ugor file from server if ``True``
     :param force: force removal of Ugor file if ``True``
+
+    TODO Only delete the resource
+        locally should be handle by the shell
+        remotely should be handled by `ugor delete` command
     """
     import ugor
     import cache
