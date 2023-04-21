@@ -1,6 +1,6 @@
-"""config provides the global configuration for the rogu app.
+"""Provides the global configuration.
 
-config has import side effects, and should only be imported locally.
+This has import side effects, and should only be imported locally.
 """
 
 import atexit

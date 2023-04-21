@@ -1,6 +1,5 @@
-"""
-ugor handles the communication with the Ugor server.
-"""
+"""Handles the communication with the Ugor server"""
+
 from collections import namedtuple
 from dataclasses import dataclass
 from functools import wraps

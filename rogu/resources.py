@@ -1,13 +1,4 @@
-"""The resource objects - the core of Rogu.
-
-RESOURCE ACTIONS
-
- - Should raise ActionBlocked is blocked by a non-technical condition.
-
- - Should raise AppError if blocked by an expected technical condition.
-
- - Should not interact with the cache or history.
-"""
+"""The resource objects - the core of Rogu"""
 
 import abc
 import shutil

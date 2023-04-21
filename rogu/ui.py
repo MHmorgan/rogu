@@ -1,13 +1,3 @@
-"""
-log provides the logging functionality for Rogu.
-
-log has no import side effects, and can be imported globally.
-
-Since Rogu is a command line application, all logging is
-printed to stderr. This allows the user to redirect the
-output to a file or pipe it to another program.
-"""
-
 from click import echo, secho
 
 

@@ -1,10 +1,4 @@
-"""rdsl module implements the domain specific language used to automate
-Rogu's tasks.
-
-RDSL RESOURCE ACTIONS
-
- - Are responsible for managing resource cache and history.
-"""
+"""Rogu's domain specific language"""
 
 import os
 from contextlib import AbstractContextManager

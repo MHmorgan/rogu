@@ -1,6 +1,3 @@
-"""errors defines all custom exceptions used in this application."""
-
-
 class AppError(Exception):
     """Base class for all application errors.
 

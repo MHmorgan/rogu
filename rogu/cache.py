@@ -1,6 +1,6 @@
-"""cache provides the cache functionality for Rogu.
+"""Provides caches and cache functionality.
 
-cache has import side effects, and should only be imported locally.
+This has import side effects, and should only be imported locally.
 """
 import atexit
 import pickle

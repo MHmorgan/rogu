@@ -1,22 +1,11 @@
-"""cli implements the command line interface for the rogu app."""
 import sys
 from functools import partial
 from typing import Iterable
 
-# NOTE Only import the bare minimum here, to keep the startup time low.
 import click
 from click import echo, style
 from errors import *
 from ui import *
-
-
-# TODO Support scripts in CLI
-#
-# Use a 'script' cli group to manage scripts?
-# Run scripts with 'rogu run <script>' or 'rogu <script>'
-# or 'rogu script run <script>'?
-
-# TODO Improve CLI help text. Group the commands into categories?
 
 
 @click.group()
