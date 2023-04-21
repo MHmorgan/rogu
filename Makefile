@@ -13,6 +13,7 @@ update:
 build:
 	mkdir -p build
 	python3 -m zipapp --output build/$(APP) --python "/usr/bin/env python3 -O" --compress $(APP)
+	@echo "\n\tHAVE YOU UPDATED THE VERSION NUMBER?"
 
 test:
 	./test all
