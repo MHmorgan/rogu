@@ -44,6 +44,7 @@ def debug(*args, sep=' ', **kwargs):
 def verbose(*args, sep=' ', **kwargs):
     if VERBOSE or __debug__:
         s = sep.join(str(m) for m in args)
+        kwargs.setdefault('err', True)
         echo('[*] ' + s, **kwargs)
 
 
