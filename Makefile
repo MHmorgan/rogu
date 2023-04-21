@@ -12,7 +12,7 @@ update:
 
 build:
 	mkdir -p build
-	python3 -m zipapp --output build/$(APP) --python "/usr/bin/env python3 -OO" --compress $(APP)
+	python3 -m zipapp --output build/$(APP) --python "/usr/bin/env python3 -O" --compress $(APP)
 
 test:
 	./test all
