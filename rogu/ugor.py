@@ -70,8 +70,15 @@ FileHeader = namedtuple('FileHeader', [
     'content_length',
     'modified',
     'etag',
+    'description',
+    'tag',
     'tag2',
-    'data2'
+    'tag3',
+    'data',
+    'data2',
+    'data3',
+    'data4',
+    'data5',
 ])
 
 
@@ -91,8 +98,15 @@ def get_header(name: str) -> FileHeader:
         content_length=int(r.headers['Content-Length']),
         modified=r.headers['Last-Modified'],
         etag=r.headers['ETag'],
+        description=r.headers.get('File-Description'),
+        tag=r.headers.get('File-Tag'),
         tag2=r.headers.get('File-Tag2'),
+        tag3=r.headers.get('File-Tag3'),
+        data=r.headers.get('File-Data'),
         data2=r.headers.get('File-Data2'),
+        data3=r.headers.get('File-Data3'),
+        data4=r.headers.get('File-Data4'),
+        data5=r.headers.get('File-Data5'),
     )
 
 
