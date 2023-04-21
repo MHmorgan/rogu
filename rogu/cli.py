@@ -11,7 +11,13 @@ from ui import *
 @click.group()
 @click.option('-v', '--verbose', is_flag=True, help='Enable verbose output.')
 def cli(verbose):
-    """Rogu is a tool for managing resources.
+    """\b
+     ____
+    |  _ \ ___   __ _ _   _
+    | |_) / _ \ / _' | | | |
+    |  _ < (_) | (_| | |_| |
+    |_| \_\___/ \__, |\__,_|
+                |___/
 
     Run 'rogu help' for more detailed help.
     """
@@ -479,6 +485,9 @@ def doctor():
     import shutil
 
     def show(lbl, txt):
+        if txt is None:
+            txt = '<not found>'
+        txt = str(txt).split('\n')[0]
         echo(f'{bold(lbl):>{24}} {txt}')
 
     def hr():
@@ -499,7 +508,8 @@ def doctor():
     show('GitHub CLI', shutil.which('gh'))
 
     # Environment
-    if env_vars := config.env_vars.values():
+    env_vars = config.env_vars.values()
+    if len(env_vars):
         hr()
         for name in sorted(env_vars):
             if val := os.environ.get(name):
