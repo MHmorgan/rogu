@@ -12,6 +12,8 @@ from pathlib import Path
 import click
 import yaml
 
+from errors import *
+
 __all__ = [
     'version',
     'set_',
@@ -34,6 +36,7 @@ env_vars = {
 }
 
 # Temporary directory, unique for each run
+# TODO Use this for temporary archive files?
 tmp_dir = Path(tempfile.mkdtemp(prefix='rogu-'))
 
 atexit.register(lambda: tmp_dir.exists() and shutil.rmtree(tmp_dir, ignore_errors=True))
@@ -74,3 +77,14 @@ def reset(key):
         del _config[key]
     with _file.open('w') as f:
         yaml.dump(_config, f)
+
+
+def _sanity_check():
+    app_dir = Path(__getattr__('app_dir'))
+    if not app_dir.exists():
+        app_dir.mkdir(parents=True)
+    elif not app_dir.is_dir():
+        raise AppError(f'App directory exists but is not a directory: {app_dir}')
+
+
+_sanity_check()
