@@ -245,11 +245,13 @@ def sync(r):
     if d == 1:
         debug(f'Uploading resource...')
         r.upload()
-        return
 
     elif d == -1:
         debug(f'Installing resource...')
         r.install()
+
+    else:
+        verbose(f'{r} is up-to-date')
 
 
 @need_resource
