@@ -140,7 +140,7 @@ def update(r):
 
     :param r: a ``Resource`` instance
     """
-    debug(f'Updating {r} of category 0b{r.category:b}')
+    debug(f'Updating {r} of category 0b{r.category:04b}')
 
     if is_ignored(r):
         blocked(f'not updated: {r.class_name} is ignored')
