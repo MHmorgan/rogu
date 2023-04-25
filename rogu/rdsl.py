@@ -306,46 +306,15 @@ def move(r, path):
 
 
 @need_resource
-def delete(r, local, remote, force=False):
+def delete(r):
     """Remove a resource.
 
     :param r: a ``Resource`` instance
-    :param local: remove the local copy if ``True``
-    :param remote: remove the Ugor file from server if ``True``
-    :param force: force removal of Ugor file if ``True``
-
-    TODO Only delete the resource
-        locally should be handle by the shell
-        remotely should be handled by `ugor delete` command
     """
-    import ugor
     import cache
-    import shutil
-
-    # Remove ugor file from server
-    if is_ugor(r) and remote:
-        ugor.delete(
-            name=r.name,
-            etag=getattr(r, 'last_etag', None),
-            modified=getattr(r, 'last_modified', None),
-            force=force,
-        )
-        verbose('Deleted Ugor file')
-
-    # Delete local copy
-    if local:
-        if r.path.exists():
-            if r.path.is_dir():
-                shutil.rmtree(r.path, ignore_errors=True)
-            else:
-                os.remove(r.path)
-            verbose('Deleted local copy')
-        else:
-            verbose('No local copy to delete')
 
     del cache.resources[r]
-    del cache.modified[r]
-    verbose('Deleted from cache')
+    verbose(f'{r} deleted')
 
 
 # ------------------------------------------------------------------------------
