@@ -303,7 +303,6 @@ def move(r, path):
     r.path = Path(resources.normalize_path(path))
 
     del cache.resources[old_key]
-    del cache.modified[old_key]
     store(r)
     verbose(f'{r} moved')
 
@@ -333,7 +332,6 @@ def store(r):
     """
     import cache
     cache.resources[r] = r
-    cache.modified[r] = r.path_hash
 
 
 @need_resource
