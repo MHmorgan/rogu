@@ -400,12 +400,12 @@ def ugor_put(file, name, **metadata):
         raise AppError(f'uploading file: {e}')
 
 
-@ugor.command('delete')
+@ugor.command('rm')
 @click.argument('name')
 @click.option('-f', '--force', is_flag=True, help='Ignore failing preconditions.')
 @click.option('--etag', help='ETag precondition.')
 @click.option('--modified', help='Modified precondition.')
-def ugor_delete(name, force, etag, modified):
+def ugor_rm(name, force, etag, modified):
     """Delete file NAME from the Ugor server."""
     import ugor
     from requests import HTTPError
