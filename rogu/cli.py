@@ -47,10 +47,12 @@ def put(name, description):
 
 @cli.command('list')
 @click.argument('name', required=False)
-@click.option('-a', '--all', 'all_', is_flag=True, help='List all files, not only files owned by Rogu.')
-def list_(name, all_):
+@click.option('-a', 'all_', is_flag=True, help='List all files, not only files owned by Rogu.')
+@click.option('-s', 'size', is_flag=True, help='Show file size.')
+def list_(name, all_, size):
     """List Ugor files. Optionally filter by NAME."""
     import ugor
+    import utils
 
     params = {}
     if not all_:
@@ -65,11 +67,13 @@ def list_(name, all_):
         return
 
     w = max(len(n) for n in names)
-    widths = (w,)
+    widths = (w, 6) if size else (w,)
     for name in ugor.find(**params):
-        header = ugor.get_header(name)
+        header: ugor.FileHeader = ugor.get_header(name)
         desc = dim(header.description) if header.description else ''
-        echo_row((name, desc), widths)
+        sz = utils.human_size(header.content_length)
+        vals = (name, sz, desc) if size else (name, desc)
+        echo_row(vals, widths)
 
 
 # ------------------------------------------------------------------------------
