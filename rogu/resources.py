@@ -505,6 +505,10 @@ class File(_UgorResource):
 
         if not self.path.parent.exists():
             self.path.parent.mkdir(parents=True)
+        shutil.copy(
+            self.path,
+            self.path.parent / f'{self.path.name}~'
+        )
         self.path.write_bytes(content)
 
     def upload(self, force: bool = False):
