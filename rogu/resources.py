@@ -505,10 +505,8 @@ class File(_UgorResource):
 
         if not self.path.parent.exists():
             self.path.parent.mkdir(parents=True)
-        shutil.copy(
-            self.path,
-            self.path.parent / f'{self.path.name}~'
-        )
+        backup = self.path.parent / f'.{self.path.name}~'
+        shutil.copy(self.path, backup)
         self.path.write_bytes(content)
 
     def upload(self, force: bool = False):
@@ -611,10 +609,10 @@ class Release(Resource):
 
         try:
             shutil.unpack_archive(ftmp, self.path)
-            verbose(f'Unpacked release to {self.path}')
+            debug(f'Unpacked release to {self.path}')
         except shutil.ReadError:
             shutil.copy(ftmp, self.path)
-            verbose(f'Installed release to {self.path}')
+            debug(f'Installed release to {self.path}')
         finally:
             if mode is not None and self.path.exists():
                 self.path.chmod(mode)
