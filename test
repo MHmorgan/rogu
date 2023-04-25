@@ -208,7 +208,7 @@ function ugor {
     test_rogu ugor find --tag3 'test tag 3' || failed
 
     log "Deleting file 01"
-    test_rogu ugor delete $RFILE1 || fail 'Failed to delete file 01'
+    test_rogu ugor rm $RFILE1 || fail 'Failed to delete file 01'
 
     log "Getting non-existent file 01"
     test_rogu ugor get $RFILE1 && fail 'Got non-existent file 01'
