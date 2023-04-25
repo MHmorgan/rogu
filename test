@@ -251,21 +251,23 @@ function file {
     test_rogu upload $FILE1 $URI1 || failed
 
     log "Upload a different file with the same name"
-    test_rogu upload $FILE2 $URI1 &&
-    fail "Uploaded a different file with the same name unexpectedly"
+    test_rogu upload $FILE2 $URI1 || failed
+    test_rogu get $RFILE1 > $FILE3 || failed
+    assert_notequal $FILE2 $FILE3
     success
 
     header "INSTALL FILE"
 
     log "Installing non-existent file"
-    test_rogu install $RFILE1 $URI2 &&
-    fail "Installed non-existent file unexpectedly"
+    test_rogu install $RFILE1 $URI2 || failed
+    test -f $RFILE1 && fail "Installed non-existent file unexpectedly"
 
     log "Installing from invalid Rogu URI"
     test_rogu install $RFILE1 https://foobar.org/rogu &&
     fail "Installed from invalid Rogu URI unexpectedly"
 
     log "Installing file"
+    rm $FILE3
     test_rogu install $FILE3 $URI1 || failed
     assert_equal $FILE1 $FILE3
 
@@ -297,7 +299,7 @@ function file {
     log "Modify and update file 2"
     echo "Lorem ipsum..." > $FILE2
     test_rogu update || failed
-    test_rogu install -f $FILE4 $URI2 || failed
+    test_rogu install -D $FILE4 $URI2 || failed
     assert_equal $FILE1 $FILE3
     assert_equal $FILE2 $FILE4
     success
@@ -386,7 +388,7 @@ function archive {
     log "Modifying and updating archive 2"
     echo "Lorem ipsum dolor sit amet, consectetur adipiscing elit..." > $DIR2/README.md
     test_rogu update || failed
-    test_rogu install -f $DIR4 $URI2 || failed
+    test_rogu install -D $DIR4 $URI2 || failed
     assert_equal $DIR1 $DIR3
     assert_equal $DIR2 $DIR4
     success

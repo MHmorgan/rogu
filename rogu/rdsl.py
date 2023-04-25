@@ -132,7 +132,7 @@ def fetch(
 
 @need_resource
 @refresh_resource
-def update(r):
+def update(r, **kwargs):
     """Update a resource.
 
     This may include installing updates, uploading new versions,
@@ -148,11 +148,11 @@ def update(r):
     if hasattr(r, 'update'):
         r.update()
     elif is_synced(r):
-        sync(r)
+        sync(r, **kwargs)
     elif is_installed(r):
-        install(r)
+        install(r, **kwargs)
     elif is_uploaded(r):
-        upload(r)
+        upload(r, **kwargs)
     else:
         uri = r.uri
         path = r.path
@@ -161,13 +161,14 @@ def update(r):
 
 @need_resource
 @refresh_resource
-def install(r, force=False):
+def install(r, ignore_divergence: bool = False, ignore_conditionals: bool = False):
     """Install a resource.
 
     *resource* is installed from its remote location to its local path.
 
     :param r: a ``Resource`` instance
-    :param force: force installation even if the resource has local changes
+    :param ignore_divergence: ignore divergence issues
+    :param ignore_conditionals: ignore conditional request headers
     """
     debug(f'Installing {r!r}')
 
@@ -175,26 +176,35 @@ def install(r, force=False):
     if not hasattr(r, 'install'):
         fail(f'cannot install {r}: install() not implemented.')
 
-    if hasattr(r, 'divergence') and exists(r) and not force:
+    try:
         d = r.divergence()
+    except AttributeError:
+        pass
+    else:
         debug(f'Install divergence: {d}')
-        if d == 0:
+        if ignore_divergence:
+            pass
+        elif d == 0 and not exists(r):
+            blocked(f'not installed: {r} does not exist')
+        elif d == 0:
             verbose(f'{r} is up-to-date')
             return
         elif d > 0:
             blocked('not installed: has new local changes')
 
     r.category |= Resource.INSTALL
-    r.install(force=force)
+    r.install(force=ignore_conditionals)
+    verbose(f'{r} installed')
 
 
 @need_resource
 @refresh_resource
-def upload(r, force=False):
+def upload(r, ignore_divergence: bool = False, ignore_conditionals: bool = False):
     """Upload a resource to Ugor.
 
     :param r: a ``Resource`` instance
-    :param force: force upload even if the resource has no local changes
+    :param ignore_divergence: ignore divergence issues
+    :param ignore_conditionals: ignore conditional request headers
     :return: a ``Result`` instance
     """
     debug(f'Uploading {r!r}')
@@ -203,26 +213,36 @@ def upload(r, force=False):
     if not hasattr(r, 'upload'):
         fail(f'cannot upload {r}: upload() not implemented')
 
-    if hasattr(r, 'divergence') and not force:
+    try:
         d = r.divergence()
+    except AttributeError:
+        pass
+    else:
         debug(f'Upload divergence: {d}')
-        if d == 0:
+        if ignore_divergence:
+            pass
+        elif d == 0 and not exists(r):
+            blocked(f'not uploaded: {r} does not exist')
+        elif d == 0:
             verbose(f'{r} is up-to-date')
             return
         elif d < 0:
-            fail('not uploaded: has new remote changes')
+            blocked('not uploaded: has new remote changes')
 
     r.category |= Resource.UPLOAD
-    r.upload(force=force)
+    r.upload(force=ignore_conditionals)
+    verbose(f'{r} uploaded')
 
 
 @need_resource
 @refresh_resource
-def sync(r):
+def sync(r, ignore_divergence: bool = False, ignore_conditionals: bool = False):
     """Synchronise a resource. Sync is like a combination of install
     and upload.
 
     :param r: a ``Resource`` instance
+    :param ignore_divergence: ignore divergence issues
+    :param ignore_conditionals: ignore conditional request headers
     """
     debug(f'Synchronising {r!r}')
 
@@ -239,19 +259,22 @@ def sync(r):
     d = r.divergence()
     debug(f'Sync divergence: {d}')
 
-    if d in (2, -2):
+    if d in (2, -2) and not ignore_divergence:
         blocked('not synced: has new local and remote changes')
 
-    if d == 1:
-        debug(f'Uploading resource...')
-        r.upload()
-
-    elif d == -1:
-        debug(f'Installing resource...')
-        r.install()
-
-    else:
+    if d == 0 and not exists(r):
+        blocked(f'not synced: {r} does not exist')
+    elif d == 0:
         verbose(f'{r} is up-to-date')
+        return
+
+    if d > 0:
+        debug(f'Uploading resource...')
+        r.upload(force=ignore_conditionals)
+    elif d < 0:
+        debug(f'Installing resource...')
+        r.install(force=ignore_conditionals)
+    verbose(f'{r} synced')
 
 
 @need_resource

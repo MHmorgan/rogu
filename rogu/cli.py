@@ -78,9 +78,10 @@ def list_(name, all_):
 @cli.command()
 @click.argument('path')
 @click.argument('uri')
-@click.option('-m', '--mode', type=int, help='File mode.')
-@click.option('-f', '--force', is_flag=True, help='Overwrite existing files.')
-def install(path, uri, mode, force):
+@click.option('-m', 'mode', type=int, help='File mode.')
+@click.option('-D', 'ignore_divergence', is_flag=True, help='Override divergence checks.')
+@click.option('-C', 'ignore_conditionals', is_flag=True, help='Do not use conditional requests.')
+def install(path, uri, mode, **kwargs):
     """Install a resource. The resource is fetched from URI and written to PATH.
 
     URI may be a relative path (an Ugor name), or a URL.
@@ -94,7 +95,7 @@ def install(path, uri, mode, force):
 
     try:
         resource = rdsl.fetch(path=path, uri=uri)
-        rdsl.install(resource, force=force)
+        rdsl.install(resource, **kwargs)
     except ActionBlocked as e:
         warn(e)
     else:
@@ -106,9 +107,10 @@ def install(path, uri, mode, force):
 @cli.command()
 @click.argument('path', type=click.Path(exists=True))
 @click.argument('uri')
-@click.option('-f', '--force', is_flag=True, help='Overwrite existing files.')
+@click.option('-D', 'ignore_divergence', is_flag=True, help='Override divergence checks.')
+@click.option('-C', 'ignore_conditionals', is_flag=True, help='Do not use conditional requests.')
 @click.option('-d', '--description', help='Description of the file.')
-def upload(path, uri, force, description):
+def upload(path, uri, description, **kwargs):
     """Upload a resource.
 
     To upload to Ugor, URI must be a relative path (an Ugor name).
@@ -122,7 +124,7 @@ def upload(path, uri, force, description):
 
     try:
         resource = rdsl.fetch(path=path, uri=uri, description=description)
-        rdsl.upload(resource, force=force)
+        rdsl.upload(resource, **kwargs)
     except ActionBlocked as e:
         warn(e)
     else:
@@ -132,9 +134,11 @@ def upload(path, uri, force, description):
 @cli.command()
 @click.argument('path')
 @click.argument('uri')
-@click.option('-m', '--mode', type=int, help='File mode.')
-@click.option('-d', '--description', help='Description of the file.')
-def sync(path, uri, mode, description):
+@click.option('-m', 'mode', type=int, help='File mode.')
+@click.option('-D', 'ignore_divergence', is_flag=True, help='Override divergence checks.')
+@click.option('-C', 'ignore_conditionals', is_flag=True, help='Do not use conditional requests.')
+@click.option('-d', 'description', help='Description of the file.')
+def sync(path, uri, mode, description, **kwargs):
     """Synchronise a resource. This is like a combination of
     update and install.
 
@@ -149,7 +153,7 @@ def sync(path, uri, mode, description):
 
     try:
         resource = rdsl.fetch(path=path, uri=uri, description=description)
-        rdsl.sync(resource)
+        rdsl.sync(resource, **kwargs)
     except ActionBlocked as e:
         warn(e)
     else:
@@ -159,10 +163,12 @@ def sync(path, uri, mode, description):
 
 
 @cli.command()
-@click.option('-r', '--resource', 'key', help='Key of a resource to update.')
-@click.option('-p', '--path', help='Path of a resource to update.')
-@click.option('-u', '--uri', help='Name of a resource to update.')
-def update(key, path, uri):
+@click.option('-r', 'key', help='Key of a resource to update.')
+@click.option('-p', 'path', help='Path of a resource to update.')
+@click.option('-u', 'uri', help='Name of a resource to update.')
+@click.option('-D', 'ignore_divergence', is_flag=True, help='Override divergence checks.')
+@click.option('-C', 'ignore_conditionals', is_flag=True, help='Do not use conditional requests.')
+def update(key, path, uri, **kwargs):
     """Update resources.
 
     If no resource is specified, all resources are updated.
@@ -204,7 +210,7 @@ def update(key, path, uri):
 
             try:
                 resource = rs.pop(i)
-                rdsl.update(resource)
+                rdsl.update(resource, **kwargs)
             except ActionBlocked as e:
                 warn(e)
             except AppError as e:
