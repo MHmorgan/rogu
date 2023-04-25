@@ -289,6 +289,8 @@ def move(r, path):
     import shutil
     from pathlib import Path
 
+    debug(f'Moving {r!r} to {path}')
+
     new_key = resources.cache_key(path=path, uri=r.uri)
     old_key = r.key
 
@@ -303,6 +305,7 @@ def move(r, path):
     del cache.resources[old_key]
     del cache.modified[old_key]
     store(r)
+    verbose(f'{r} moved')
 
 
 @need_resource
