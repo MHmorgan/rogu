@@ -82,7 +82,7 @@ def list_(name, all_, size):
 @cli.command()
 @click.argument('path')
 @click.argument('uri')
-@click.option('-m', 'mode', type=int, help='File mode.')
+@click.option('-m', 'mode', help='File mode.')
 @click.option('-D', 'ignore_divergence', is_flag=True, help='Override divergence checks.')
 @click.option('-C', 'ignore_conditionals', is_flag=True, help='Do not use conditional requests.')
 def install(path, uri, mode, **kwargs):
@@ -96,6 +96,9 @@ def install(path, uri, mode, **kwargs):
     success.
     """
     import rdsl
+
+    if mode:
+        mode = int(mode, 8)
 
     try:
         resource = rdsl.fetch(path=path, uri=uri)
@@ -138,7 +141,7 @@ def upload(path, uri, description, **kwargs):
 @cli.command()
 @click.argument('path')
 @click.argument('uri')
-@click.option('-m', 'mode', type=int, help='File mode.')
+@click.option('-m', 'mode', help='File mode.')
 @click.option('-D', 'ignore_divergence', is_flag=True, help='Override divergence checks.')
 @click.option('-C', 'ignore_conditionals', is_flag=True, help='Do not use conditional requests.')
 @click.option('-d', 'description', help='Description of the file.')
@@ -154,6 +157,9 @@ def sync(path, uri, mode, description, **kwargs):
     success.
     """
     import rdsl
+
+    if mode:
+        mode = int(mode, 8)
 
     try:
         resource = rdsl.fetch(path=path, uri=uri, description=description)
