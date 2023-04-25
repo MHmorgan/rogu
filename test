@@ -170,7 +170,7 @@ function teardown {
     )
     for FILE in $TARGETS; do
         if [[ $LIST =~ $FILE ]]; then
-            run_rogu ugor delete $FILE &&
+            run_rogu ugor rm $FILE &&
             echo "$FILE from Ugor"
         fi
     done
@@ -315,13 +315,13 @@ function file {
     fail "Moved resource to an existing resource unexpectedly"
 
     log "Delete file 3"
-    test_rogu rm --local $KEY3 || failed
+    test_rogu rm $KEY3 || failed
 
     log "Move file 1 to file 3"
     test_rogu mv $KEY1 $FILE3 || failed
 
     log "Delete file 2"
-    test_rogu rm --local --remote $KEY2 || failed
+    test_rogu rm $KEY2 || failed
 
     log "Try updating"
     test_rogu update || failed
@@ -353,8 +353,8 @@ function archive {
     header "INSTALL ARCHIVE"
 
     log "Install non-existent archive"
-    test_rogu install $DIR3 ugor://archive/idont/exist &&
-    fail "Installed non-existent archive unexpectedly"
+    test_rogu install $DIR3 ugor://archive/idont/exist || failed
+    test -d $DIR3 && fail "Installed non-existent archive unexpectedly"
 
     log "Install archive"
     test_rogu install $DIR3 $URI1 || failed
