@@ -228,21 +228,10 @@ def update(key, path, uri, **kwargs):
 
 @cli.command()
 @click.argument('key')
-@click.option('-l', '--local', is_flag=True, help='Delete the local copy of the resource.')
-@click.option('-f', '--force', is_flag=True, help='Force removal of the resource.')
-@click.option('-R', '--remote', is_flag=True, help='Remove Ugor file from server.')
-def rm(key, local, force, remote):
+def rm(key):
     """Remove a resource.
 
     KEY is the key of the resource to remove.
-
-    With --local, the local copy of the resource is removed if it exists.
-
-    Without --no-remote and if the resource URI is an Ugor name, the Ugor file is
-    removed from the server.
-
-    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
-    success.
     """
     import cache
     import resources
@@ -254,12 +243,7 @@ def rm(key, local, force, remote):
         bail('Resource not found')
 
     try:
-        rdsl.delete(
-            cache.resources[key],
-            local=local,
-            remote=remote,
-            force=force,
-        )
+        rdsl.delete(cache.resources[key])
     except ActionBlocked as e:
         warn(e)
 
