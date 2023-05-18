@@ -1,0 +1,24 @@
+#!/usr/bin/env zsh
+# vim: tabstop=4:shiftwidth=4:expandtab:
+
+autoload -U colors && colors
+function info   { echo "\e[${color[faint]};${color[default]}m$*$reset_color" }
+function warn   { echo "$fg_bold[yellow]WARN: $*$reset_color" }
+function err    { echo "$fg_bold[red]ERROR: $*$reset_color" }
+function bold   { echo "$fg_bold[default]$*$reset_color" }
+
+if ! (( $+1 )); then
+    gh release list --limit 3
+    err "Missing release version number."
+    exit 1
+fi
+
+VERSION=$1
+APP=rogu
+
+gum confirm "Have you updated the version number in the code?" || exit 1
+
+mkdir -p build
+python3 -m zipapp --output build/$APP --python "/usr/bin/env python3 -O" --compress $APP
+
+gh release create $VERSION build/$APP
