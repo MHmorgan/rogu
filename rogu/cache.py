@@ -32,7 +32,7 @@ def __getattr__(name: Union[str, Path]) -> shelve.Shelf:
     :param name: string or Path.
     """
     if name not in _caches:
-        _caches[name] = _open(path(name))
+        _caches[name] = _open(Path(config.app_dir) / f'cache-{name}')
         atexit.register(_caches[name].close)
     return _caches[name]
 
