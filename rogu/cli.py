@@ -472,19 +472,13 @@ def ugor_list():
 # CLI MISC
 
 @cli.command()
-def version():
-    """Print the rogu version."""
-    import config
-    echo(config.version)
-
-
-@cli.command()
-def doctor():
-    """Analyze the Rogu installation."""
+def info():
+    """Show Rogu information."""
     import cache
     import config
     import os
     import shutil
+    import ugor
 
     def show(lbl, txt):
         if txt is None:
@@ -508,6 +502,12 @@ def doctor():
     show('Homebrew', shutil.which('brew'))
     show('Git', shutil.which('git'))
     show('GitHub CLI', shutil.which('gh'))
+
+    # Ugor server info
+    if uinfo := ugor.info():
+        hr()
+        for key, val in uinfo.items():
+            show(f'Ugor {key}', val)
 
     # Environment
     first = True
