@@ -125,6 +125,24 @@ class Resource(abc.ABC):
         return self.__class__.__name__
 
     @property
+    def cached_hash(self) -> Optional[str]:
+        """Hash of the resource in the cache if any.
+
+        By default, this is None, but subclasses can override this to return
+        the hash of the resource in the cache.
+        """
+        import cache
+        c = cache.get(self.__class__.__name__.lower())
+        return c.get(self.key, None)
+
+    def store_hash(self, value: str):
+        """Store the given hash value in the cache."""
+        import cache
+        c = cache.get(self.__class__.__name__.lower())
+        c[self.key] = value
+        debug(f'Cached hash "{value}" for {self.short_key}')
+
+    @property
     def path_hash(self) -> str:
         """Hash string of the resource locally.
 
@@ -299,8 +317,6 @@ class _UgorResource(Resource):
         """Upload this resource to Ugor."""
         debug('..._UgorResource.ugor_upload()')
 
-        from cache import ugor_resources
-
         file = ugor.put(
             obj=obj,
             name=self.name,
@@ -314,7 +330,7 @@ class _UgorResource(Resource):
         )
         self.last_etag = file.last_etag
         self.last_modified = file.last_modified
-        ugor_resources[self.key] = self.path_hash
+        self.store_hash(self.path_hash)
 
     def divergence(self) -> int:
         """Return the divergence between the path and uri content.
@@ -328,8 +344,6 @@ class _UgorResource(Resource):
         """
         debug('..._UgorResource.divergence()')
 
-        from cache import ugor_resources
-
         try:
             header = ugor.get_header(self.name)
         except UgorError404:
@@ -342,7 +356,7 @@ class _UgorResource(Resource):
 
         old_etag = self.last_etag  # ETag at last install or upload
         new_etag = header.etag
-        old_hash = ugor_resources.get(self.key, None)  # Hash at last upload
+        old_hash = self.cached_hash
         new_hash = self.path_hash
         uri_mod = arrow.get(header.modified)
         path_mod = self.path_modified
@@ -448,6 +462,10 @@ class Archive(_UgorResource):
         self.path.parent.mkdir(parents=True, exist_ok=True)
         shutil.unpack_archive(ftmp, self.path)
 
+        # Would ideally do this in _UgorResource.ugor_install() but
+        # we need to unpack the archive first.
+        self.store_hash(self.path_hash)
+
     def upload(self, force: bool = False):
         """Upload the archive to Ugor."""
         import cache
@@ -514,6 +532,10 @@ class File(_UgorResource):
             shutil.copy(self.path, backup)
             debug(f'Backed up to {backup.name}')
         self.path.write_bytes(content)
+
+        # Would ideally do this in _UgorResource.ugor_install() but
+        # we need to write the file first.
+        self.store_hash(self.path_hash)
 
     def upload(self, force: bool = False):
         """Upload the file to Ugor."""
