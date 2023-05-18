@@ -12,7 +12,7 @@ def err(*args, sep=' ', **kwargs):
     kwargs.setdefault('fg', 'red')
     kwargs.setdefault('bold', True)
     kwargs.setdefault('err', True)
-    secho(f'Error: {s}', **kwargs)
+    secho(f'ERROR: {s}', **kwargs)
 
 
 def warn(*args, sep=' ', **kwargs):
@@ -20,7 +20,7 @@ def warn(*args, sep=' ', **kwargs):
     kwargs.setdefault('fg', 'yellow')
     kwargs.setdefault('bold', True)
     kwargs.setdefault('err', True)
-    secho(f'Warn: {s}', **kwargs)
+    secho(f'WARN: {s}', **kwargs)
 
 
 def debug(*args, sep=' ', **kwargs):
@@ -28,14 +28,14 @@ def debug(*args, sep=' ', **kwargs):
         s = sep.join(str(m) for m in args)
         kwargs.setdefault('dim', True)
         kwargs.setdefault('err', True)
-        secho('[*] ' + s, **kwargs)
+        secho(s, **kwargs)
 
 
 def verbose(*args, sep=' ', **kwargs):
     if VERBOSE or __debug__:
         s = sep.join(str(m) for m in args)
         kwargs.setdefault('err', True)
-        echo('[*] ' + s, **kwargs)
+        echo(s, **kwargs)
 
 
 def good(*args, sep=' ', **kwargs):
