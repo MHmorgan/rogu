@@ -6,15 +6,13 @@ import atexit
 import pickle
 import shelve
 from pathlib import Path
+from typing import Union
 
 import config
 
 
-def _open(path):
-    return shelve.open(
-        str(path),
-        protocol=pickle.HIGHEST_PROTOCOL
-    )
+def _open(file: Union[str, Path]) -> shelve.Shelf:
+    return shelve.open(str(file), protocol=pickle.HIGHEST_PROTOCOL)
 
 
 primary_file = Path(config.app_dir) / 'rogu-cache'
@@ -25,8 +23,29 @@ resources_file = Path(config.app_dir) / 'rogu-resource-cache'
 resources = _open(resources_file)
 atexit.register(resources.close)
 
+_caches = {}
 
-def path(name):
+
+def __getattr__(name: Union[str, Path]) -> shelve.Shelf:
+    """Return a cache with the given name.
+
+    :param name: string or Path.
+    """
+    if name not in _caches:
+        _caches[name] = _open(path(name))
+        atexit.register(_caches[name].close)
+    return _caches[name]
+
+
+def get(name: Union[str, Path]) -> shelve.Shelf:
+    """Return a cache with the given name.
+
+    :param name: string or Path.
+    """
+    return __getattr__(name)
+
+
+def path(name: Union[str, Path]) -> Path:
     """Return the path to a cache file with the given name.
     Any missing parent directories will be created.
 
