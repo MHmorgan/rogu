@@ -299,6 +299,8 @@ class _UgorResource(Resource):
         """Upload this resource to Ugor."""
         debug('..._UgorResource.ugor_upload()')
 
+        from cache import ugor_resources
+
         file = ugor.put(
             obj=obj,
             name=self.name,
@@ -308,11 +310,11 @@ class _UgorResource(Resource):
                 'last_modified': self.last_modified,
                 'description': self.description,
                 'tag2': 'Rogu',
-                'data2': self.path_hash,
             }
         )
         self.last_etag = file.last_etag
         self.last_modified = file.last_modified
+        ugor_resources[self.key] = self.path_hash
 
     def divergence(self) -> int:
         """Return the divergence between the path and uri content.
@@ -326,6 +328,8 @@ class _UgorResource(Resource):
         """
         debug('..._UgorResource.divergence()')
 
+        from cache import ugor_resources
+
         try:
             header = ugor.get_header(self.name)
         except UgorError404:
@@ -338,7 +342,7 @@ class _UgorResource(Resource):
 
         old_etag = self.last_etag  # ETag at last install or upload
         new_etag = header.etag
-        old_hash = header.data2  # Hash at last upload
+        old_hash = ugor_resources.get(self.key, None)  # Hash at last upload
         new_hash = self.path_hash
         uri_mod = arrow.get(header.modified)
         path_mod = self.path_modified
