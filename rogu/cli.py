@@ -305,6 +305,28 @@ def resources(key):
         echo_row(cols, widths)
 
 
+@cli.command()
+@click.argument('key')
+def show(key):
+    """Show information about a resource."""
+    import cache
+    import resources
+
+    try:
+        key = resources.expand_key(key)
+    except ValueError:
+        bail('Resource not found!')
+    r = cache.resources[key]
+
+    echo(f'Key: {r.key}')
+    echo(f'Type: {r.class_name}')
+    echo(f'Path: {r.path}')
+    echo(f'Category: 0b{r.category:04b}')
+    echo(f'URI: {r.uri}')
+    echo(f'Current hash: {r.path_hash}')
+    echo(f'Cached hash: {r.cached_hash}')
+
+
 # ------------------------------------------------------------------------------
 # UGOR
 
