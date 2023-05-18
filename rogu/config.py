@@ -23,7 +23,7 @@ __all__ = [
     'app_dir',
 ]
 
-version = '2.3'
+version = '2.4'
 
 defaults = {
     'ugor_url': 'https://ugor.hirth.dev',

@@ -19,6 +19,10 @@ APP=rogu
 gum confirm "Have you updated the version number in the code?" || exit 1
 
 mkdir -p build
-python3 -m zipapp --output build/$APP --python "/usr/bin/env python3 -O" --compress $APP
 
-gh release create $VERSION build/$APP
+python3 -m zipapp \
+    --output build/$APP \
+    --python "/usr/bin/env python3 -O" \
+    --compress $APP &&
+
+gh release create $VERSION build/$APP --generate-notes
