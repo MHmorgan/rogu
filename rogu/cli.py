@@ -29,7 +29,7 @@ def cli(verbose):
 @cli.command()
 @click.argument('name')
 def get(name):
-    """Get an Ugor file and print it to stdout."""
+    """Get an Ugor file and print the content to stdout."""
     import ugor
     file = ugor.get(name)
     sys.stdout.buffer.write(file.content)
@@ -91,9 +91,6 @@ def install(path, uri, mode, **kwargs):
     URI may be a relative path (an Ugor name), or a URL.
 
     Installed resources are kept up-to-date with update.
-
-    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
-    success.
     """
     import rdsl
 
@@ -123,9 +120,6 @@ def upload(path, uri, description, **kwargs):
     To upload to Ugor, URI must be a relative path (an Ugor name).
 
     Uploaded resources are kept up-to-date with update.
-
-    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
-    success.
     """
     import rdsl
 
@@ -152,9 +146,6 @@ def sync(path, uri, mode, description, **kwargs):
     URI must be a relative path or file name (an Ugor name).
 
     Synchronised resources are kept up-to-date with update.
-
-    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
-    success.
     """
     import rdsl
 
@@ -182,9 +173,6 @@ def update(key, path, uri, **kwargs):
     """Update resources.
 
     If no resource is specified, all resources are updated.
-
-    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
-    success.
     """
     import cache
     import rdsl
@@ -261,9 +249,6 @@ def mv(key, path):
     """Move a resource locally.
 
     KEY is the resource key and PATH in the new local path.
-
-    Returns 2 if the resource action is blocked, 1 for errors, and 0 for
-    success.
     """
     import cache
     import resources
